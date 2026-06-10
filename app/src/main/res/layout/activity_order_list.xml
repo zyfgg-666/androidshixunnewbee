@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5"
+    android:orientation="vertical">
+
+    <!-- 标题栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:background="#FFFFFF"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/iv_back"
+            android:layout_width="40dp"
+            android:layout_height="match_parent"
+            android:padding="10dp"
+            android:src="@android:drawable/ic_menu_revert" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="我的订单"
+            android:textColor="#333333"
+            android:textSize="16sp" />
+
+        <View
+            android:layout_width="40dp"
+            android:layout_height="match_parent" />
+    </LinearLayout>
+
+    <!-- Tab栏 -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tab_layout"
+        android:layout_width="match_parent"
+        android:layout_height="45dp"
+        android:background="#FFFFFF"
+        app:tabIndicatorColor="#00C9A7"
+        app:tabSelectedTextColor="#00C9A7"
+        app:tabTextColor="#333333"
+        xmlns:app="http://schemas.android.com/apk/res-auto" />
+
+    <!-- 订单列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_order"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+</LinearLayout>

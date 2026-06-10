@@ -1,0 +1,39 @@
+package com.example.newbee2.model;
+
+public class Address {
+    private Long addressId;
+    private Long userId;
+    private String userName;
+    private String userPhone;
+    private String provinceName;
+    private String cityName;
+    private String regionName;
+    private String detailAddress;
+    private Integer defaultFlag;
+
+    public Long getAddressId() { return addressId; }
+    public void setAddressId(Long addressId) { this.addressId = addressId; }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
+    public String getUserName() { return userName; }
+    public void setUserName(String userName) { this.userName = userName; }
+    public String getUserPhone() { return userPhone; }
+    public void setUserPhone(String userPhone) { this.userPhone = userPhone; }
+    public String getProvinceName() { return provinceName; }
+    public void setProvinceName(String provinceName) { this.provinceName = provinceName; }
+    public String getCityName() { return cityName; }
+    public void setCityName(String cityName) { this.cityName = cityName; }
+    public String getRegionName() { return regionName; }
+    public void setRegionName(String regionName) { this.regionName = regionName; }
+    public String getDetailAddress() { return detailAddress; }
+    public void setDetailAddress(String detailAddress) { this.detailAddress = detailAddress; }
+    public Integer getDefaultFlag() { return defaultFlag; }
+    public void setDefaultFlag(Integer defaultFlag) { this.defaultFlag = defaultFlag; }
+
+    public String getFullAddress() {
+        return (provinceName != null ? provinceName : "") +
+               (cityName != null ? cityName : "") +
+               (regionName != null ? regionName : "") +
+               (detailAddress != null ? detailAddress : "");
+    }
+}

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="first"
+        android:exported="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/first_short"
+        android:shortcutLongLabel="@string/first_login">
+
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.newbee2"
+            android:targetClass="com.example.newbee2.SearchActivity"/>
+
+        <categories android:name="android.shortcut.conversation"/>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="second"
+        android:exported="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/second_short"
+        android:shortcutLongLabel="@string/second_login">
+
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.example.newbee2"
+            android:targetClass="com.example.newbee2.OrderListActivity"/>
+
+        <categories android:name="android.shortcut.conversation"/>
+    </shortcut>
+
+</shortcuts>

@@ -1,0 +1,79 @@
+支付接口调试记录
+================
+
+接口地址: http://172.30.130.131:28019/mallapi/api/v1/paySuccess
+请求方法: GET
+接口文档: http://172.30.130.131:28019/mallapi/swagger-ui/index.html
+
+第一次尝试（失败）
+------------------
+请求URL: /paySuccess?orderNo=17809331890451565
+
+返回结果:
+{
+    "resultCode": 500,
+    "message": "未知异常，请查看控制台日志并检查配置文件。",
+    "data": null
+}
+
+失败原因:
+只传了 orderNo 参数，缺少必填参数 payType。
+
+
+第二次尝试（成功）
+------------------
+请求URL: /paySuccess?orderNo=17809331890451565&payType=1
+
+成功原因:
+根据 swagger 接口文档，支付接口需要两个必填参数：
+1. orderNo (string) - 订单号
+2. payType (integer) - 支付方式
+   - 1 = 微信支付
+   - 2 = 支付宝支付
+
+第一次调用时只传了 orderNo，缺少 payType，所以服务器返回 500 错误。
+
+
+WebFetch 与 curl 的区别
+------------------------
+WebFetch 工具无法访问局域网地址（172.x.x.x），会报错：
+"Unable to verify if domain 172.30.130.131 is safe to fetch"
+
+原因：WebFetch 有安全限制，禁止访问内网/私有网络地址（172.x.x.x、192.168.x.x、10.x.x.x、localhost）。
+
+curl 命令可以访问，因为 curl 直接在本机执行，不受此限制。
+
+解决方法：访问内网 API 时，使用 Bash 工具执行 curl 命令：
+  curl "http://172.30.130.131:28019/mallapi/v2/api-docs"
+
+
+经验总结
+--------
+1. 调用接口前应先查看 swagger 文档，确认所有必填参数
+2. 服务器返回 500 错误时，不一定是服务器问题，可能是参数不完整
+3. swagger 文档地址通常为: http://地址/swagger-ui/index.html
+4. 访问内网 API 用 curl，不用 WebFetch
+5. curl 测试接口:
+   curl "http://172.30.130.131:28019/mallapi/api/v1/paySuccess?orderNo=xxx&payType=1"
+
+
+
+
+
+已修改！根据 API 文档，用户只能操作：
+
+  修改内容：
+
+  1. 待支付订单 → 显示"立即支付"按钮
+    - 调用 /paySuccess?orderNo=xxx&payType=1 接口
+    - 状态变为：待发货
+  2. 待收货订单 → 显示"确认收货"按钮
+    - 调用 PUT /order/{orderNo}/finish 接口
+    - 状态变为：已完成
+  3. 待确认、待发货订单 → 不显示按钮
+    - 这些是管理员操作，用户无法操作
+
+  订单流程：
+  - 待支付 → 用户支付 → 待发货（管理员发货）→ 待收货 → 用户确认收货 → 已完成
+
+  注意： "待确认"和"待发货"状态需要管理员在后台操作，用户端无法直接更改

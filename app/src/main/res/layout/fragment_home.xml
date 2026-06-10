@@ -1,0 +1,411 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- 搜索栏区域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_margin="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- 三道杠菜单按钮 -->
+            <TextView
+                android:id="@+id/tv_menu"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="☰"
+                android:textSize="22sp"
+                android:textColor="#333333"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
+
+            <!-- 搜索框 -->
+            <LinearLayout
+                android:id="@+id/ll_search"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:layout_marginEnd="10dp"
+                android:background="@drawable/bg_search"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="15dp"
+                android:paddingEnd="15dp">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@android:drawable/ic_menu_search" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:text="搜索商品"
+                    android:textColor="#999999"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <!-- 个人中心按钮 -->
+            <TextView
+                android:id="@+id/tv_my_center"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="👤"
+                android:textSize="20sp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
+        </LinearLayout>
+
+        <!-- 轮播图区域 -->
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/vp_banner"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp" />
+
+        <!-- 快捷入口第一行 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="5dp">
+                <TextView
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:background="#00C9A7"
+                    android:gravity="center"
+                    android:text="🛒"
+                    android:textSize="18sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="新蜂超市"
+                    android:textColor="#333333"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="5dp">
+                <TextView
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:background="#00C9A7"
+                    android:gravity="center"
+                    android:text="👗"
+                    android:textSize="18sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="新蜂服饰"
+                    android:textColor="#333333"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="5dp">
+                <TextView
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:background="#00C9A7"
+                    android:gravity="center"
+                    android:text="🌍"
+                    android:textSize="18sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="全球购"
+                    android:textColor="#333333"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="5dp">
+                <TextView
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:background="#00C9A7"
+                    android:gravity="center"
+                    android:text="🥬"
+                    android:textSize="18sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="新蜂生鲜"
+                    android:textColor="#333333"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="5dp">
+                <TextView
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:background="#00C9A7"
+                    android:gravity="center"
+                    android:text="🏠"
+                    android:textSize="18sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="新蜂到家"
+                    android:textColor="#333333"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 快捷入口第二行 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="5dp">
+                <TextView
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:background="#00C9A7"
+                    android:gravity="center"
+                    android:text="💰"
+                    android:textSize="18sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="充值缴费"
+                    android:textColor="#333333"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="5dp">
+                <TextView
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:background="#00C9A7"
+                    android:gravity="center"
+                    android:text="9️⃣"
+                    android:textSize="18sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="9.9 元拼"
+                    android:textColor="#333333"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="5dp">
+                <TextView
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:background="#00C9A7"
+                    android:gravity="center"
+                    android:text="🎫"
+                    android:textSize="18sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="领券"
+                    android:textColor="#333333"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="5dp">
+                <TextView
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:background="#00C9A7"
+                    android:gravity="center"
+                    android:text="💎"
+                    android:textSize="18sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="省钱"
+                    android:textColor="#333333"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="5dp">
+                <TextView
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:background="#00C9A7"
+                    android:gravity="center"
+                    android:text="📋"
+                    android:textSize="18sp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="全部"
+                    android:textColor="#333333"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 分类入口 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="10dp"
+            android:text="分类"
+            android:textColor="#333333"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <com.example.newbee2.widget.MyGridView
+            android:id="@+id/gv_category"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:horizontalSpacing="10dp"
+            android:numColumns="4"
+            android:verticalSpacing="10dp" />
+
+        <!-- 新品上线 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="10dp"
+            android:text="🆕 新品上线"
+            android:textColor="#333333"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <com.example.newbee2.widget.MyGridView
+            android:id="@+id/gv_new"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:horizontalSpacing="10dp"
+            android:numColumns="2"
+            android:verticalSpacing="10dp" />
+
+        <!-- 热门商品 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="10dp"
+            android:text="🔥 热门商品"
+            android:textColor="#333333"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <com.example.newbee2.widget.MyGridView
+            android:id="@+id/gv_hot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:horizontalSpacing="10dp"
+            android:numColumns="2"
+            android:verticalSpacing="10dp" />
+
+        <!-- 最新推荐 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_marginTop="10dp"
+            android:text="⭐ 最新推荐"
+            android:textColor="#333333"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <com.example.newbee2.widget.MyGridView
+            android:id="@+id/gv_latest"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            android:horizontalSpacing="10dp"
+            android:numColumns="2"
+            android:verticalSpacing="10dp" />
+
+    </LinearLayout>
+</ScrollView>

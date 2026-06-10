@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal">
+
+    <!-- 左侧分类列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_category"
+        android:layout_width="100dp"
+        android:layout_height="match_parent"
+        android:background="#F0F0F0" />
+
+    <!-- 右侧商品列表 -->
+    <GridView
+        android:id="@+id/gv_goods"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:horizontalSpacing="10dp"
+        android:numColumns="2"
+        android:padding="10dp"
+        android:verticalSpacing="10dp" />
+
+</LinearLayout>

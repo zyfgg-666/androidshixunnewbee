@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <!-- 标题栏 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:background="#00C9A7"
+        android:gravity="center"
+        android:text="购物车"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <!-- 购物车列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_cart"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- 空购物车提示 -->
+    <TextView
+        android:id="@+id/tv_empty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:text="购物车空空如也~"
+        android:textColor="#999999"
+        android:textSize="16sp"
+        android:visibility="gone" />
+
+    <!-- 底部结算栏 -->
+    <LinearLayout
+        android:id="@+id/ll_bottom"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:background="#FFFFFF"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="15dp"
+        android:paddingEnd="15dp">
+
+        <CheckBox
+            android:id="@+id/cb_all"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="全选" />
+
+        <TextView
+            android:id="@+id/tv_total"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="合计: ¥0.00"
+            android:textColor="#FF0000"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/btn_settle"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:background="#00C9A7"
+            android:text="结算"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+</LinearLayout>

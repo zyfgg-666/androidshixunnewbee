@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">NewBee2</string>
+    <string name="first_short">first</string>
+    <string name="first_login">搜索商品</string>
+    <string name="second_short">second</string>
+    <string name="second_login">我的订单</string>
+</resources>
