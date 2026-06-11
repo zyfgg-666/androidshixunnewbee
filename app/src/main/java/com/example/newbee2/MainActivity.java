@@ -48,6 +48,12 @@ public class MainActivity extends AppCompatActivity {
         HttpUtil.init(this);
 
         initView();
+
+        // 处理外部跳转指定的tab
+        int targetTab = getIntent().getIntExtra("tab", -1);
+        if (targetTab >= 0 && targetTab <= 3) {
+            viewPager.setCurrentItem(targetTab, false);
+        }
     }
 
     @Override
