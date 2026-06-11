@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_gradient_teal"
+    android:gravity="center"
+    android:orientation="vertical">
+
+    <!-- 购物袋图标 -->
+    <ImageView
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:src="@drawable/ic_cart"
+        android:tint="#FFFFFF"
+        android:contentDescription="Logo" />
+
+    <!-- 应用名称 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:text="新蜂商城"
+        android:textColor="#FFFFFF"
+        android:textSize="28sp"
+        android:textStyle="bold" />
+
+    <!-- 副标题 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="品质生活 · 触手可及"
+        android:textColor="#CCFFFFFF"
+        android:textSize="14sp" />
+
+    <!-- 版本号 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="60dp"
+        android:text="v1.0.0"
+        android:textColor="#88FFFFFF"
+        android:textSize="12sp" />
+
+</LinearLayout>

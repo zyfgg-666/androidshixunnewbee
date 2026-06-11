@@ -6,4 +6,11 @@
     </style>
 
     <style name="Theme.NewBee2" parent="Base.Theme.NewBee2" />
+
+    <!-- 启动页主题：全屏无标题栏 -->
+    <style name="Theme.NewBee2.Splash" parent="Base.Theme.NewBee2">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>
