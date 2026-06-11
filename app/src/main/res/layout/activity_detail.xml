@@ -123,11 +123,27 @@
         android:paddingStart="15dp"
         android:paddingEnd="15dp">
 
-        <ImageView
-            android:id="@+id/iv_cart"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:src="@android:drawable/ic_menu_add" />
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+
+            <ImageView
+                android:id="@+id/iv_cart"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:src="@android:drawable/ic_menu_add" />
+
+            <TextView
+                android:id="@+id/tv_cart_badge"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_gravity="end|top"
+                android:background="@drawable/bg_badge"
+                android:gravity="center"
+                android:textColor="#FFFFFF"
+                android:textSize="10sp"
+                android:visibility="gone" />
+        </FrameLayout>
 
         <Button
             android:id="@+id/btn_add_cart"
