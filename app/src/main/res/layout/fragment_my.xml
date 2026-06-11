@@ -99,7 +99,7 @@
                 <ImageView
                     android:layout_width="30dp"
                     android:layout_height="30dp"
-                    android:src="@android:drawable/ic_menu_recent_history" />
+                    android:src="@drawable/ic_order_all" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -124,7 +124,7 @@
                     <ImageView
                         android:layout_width="30dp"
                         android:layout_height="30dp"
-                        android:src="@android:drawable/ic_menu_send" />
+                        android:src="@drawable/ic_order_pay" />
 
                     <TextView
                         android:id="@+id/tv_badge_unpay"
@@ -159,7 +159,7 @@
                 <ImageView
                     android:layout_width="30dp"
                     android:layout_height="30dp"
-                    android:src="@android:drawable/ic_menu_agenda" />
+                    android:src="@drawable/ic_order_confirm" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -184,7 +184,7 @@
                     <ImageView
                         android:layout_width="30dp"
                         android:layout_height="30dp"
-                        android:src="@android:drawable/ic_menu_directions" />
+                        android:src="@drawable/ic_order_deliver" />
 
                     <TextView
                         android:id="@+id/tv_badge_deliver"
@@ -223,7 +223,7 @@
                     <ImageView
                         android:layout_width="30dp"
                         android:layout_height="30dp"
-                        android:src="@android:drawable/ic_menu_save" />
+                        android:src="@drawable/ic_order_receive" />
 
                     <TextView
                         android:id="@+id/tv_badge_receive"
@@ -258,7 +258,7 @@
                 <ImageView
                     android:layout_width="30dp"
                     android:layout_height="30dp"
-                    android:src="@android:drawable/ic_menu_save" />
+                    android:src="@drawable/ic_order_done" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -285,7 +285,7 @@
         <ImageView
             android:layout_width="25dp"
             android:layout_height="25dp"
-            android:src="@android:drawable/ic_menu_mapmode" />
+            android:src="@drawable/ic_address" />
 
         <TextView
             android:layout_width="0dp"
@@ -298,7 +298,7 @@
         <ImageView
             android:layout_width="20dp"
             android:layout_height="20dp"
-            android:src="@android:drawable/ic_media_play" />
+            android:src="@drawable/ic_arrow_right" />
     </LinearLayout>
 
     <View
@@ -319,7 +319,7 @@
         <ImageView
             android:layout_width="25dp"
             android:layout_height="25dp"
-            android:src="@android:drawable/ic_menu_info_details" />
+            android:src="@drawable/ic_about" />
 
         <TextView
             android:layout_width="0dp"
@@ -332,7 +332,7 @@
         <ImageView
             android:layout_width="20dp"
             android:layout_height="20dp"
-            android:src="@android:drawable/ic_media_play" />
+            android:src="@drawable/ic_arrow_right" />
     </LinearLayout>
 
     <View
@@ -353,7 +353,7 @@
         <ImageView
             android:layout_width="25dp"
             android:layout_height="25dp"
-            android:src="@android:drawable/ic_lock_lock" />
+            android:src="@drawable/ic_logout" />
 
         <TextView
             android:layout_width="0dp"
@@ -366,7 +366,7 @@
         <ImageView
             android:layout_width="20dp"
             android:layout_height="20dp"
-            android:src="@android:drawable/ic_media_play" />
+            android:src="@drawable/ic_arrow_right" />
     </LinearLayout>
 
 </LinearLayout>
