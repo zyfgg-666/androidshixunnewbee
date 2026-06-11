@@ -213,6 +213,25 @@ public class AddressEditActivity extends AppCompatActivity {
         }
     }
 
+    private void handleSaveResult(String data) {
+        try {
+            Type type = new TypeToken<Result>(){}.getType();
+            Result result = HttpUtil.getGson().fromJson(data, type);
+            if (result != null && result.isSuccess()) {
+                runOnUiThread(() -> {
+                    Toast.makeText(AddressEditActivity.this, "保存成功", Toast.LENGTH_SHORT).show();
+                    setResult(RESULT_OK);
+                    finish();
+                });
+            } else {
+                String msg = result != null ? result.getMessage() : "保存失败";
+                runOnUiThread(() -> Toast.makeText(AddressEditActivity.this, msg, Toast.LENGTH_SHORT).show());
+            }
+        } catch (Exception e) {
+            runOnUiThread(() -> Toast.makeText(AddressEditActivity.this, "解析错误: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        }
+    }
+
     private void loadAddress() {
         HttpUtil.get(HttpUtil.BASE_URL + "/address/" + addressId, new HttpUtil.HttpCallback<String>() {
             @Override
@@ -267,11 +286,7 @@ public class AddressEditActivity extends AppCompatActivity {
             HttpUtil.put(HttpUtil.BASE_URL + "/address", params, new HttpUtil.HttpCallback<String>() {
                 @Override
                 public void onSuccess(String data) {
-                    runOnUiThread(() -> {
-                        Toast.makeText(AddressEditActivity.this, "保存成功", Toast.LENGTH_SHORT).show();
-                        setResult(RESULT_OK);
-                        finish();
-                    });
+                    handleSaveResult(data);
                 }
 
                 @Override
@@ -283,11 +298,7 @@ public class AddressEditActivity extends AppCompatActivity {
             HttpUtil.postJson(HttpUtil.BASE_URL + "/address", params, new HttpUtil.HttpCallback<String>() {
                 @Override
                 public void onSuccess(String data) {
-                    runOnUiThread(() -> {
-                        Toast.makeText(AddressEditActivity.this, "保存成功", Toast.LENGTH_SHORT).show();
-                        setResult(RESULT_OK);
-                        finish();
-                    });
+                    handleSaveResult(data);
                 }
 
                 @Override
