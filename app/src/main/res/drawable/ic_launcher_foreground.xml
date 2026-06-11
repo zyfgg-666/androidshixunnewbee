@@ -4,58 +4,52 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 购物袋主体 -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M30,52 L30,46 C30,40 36,34 54,34 C72,34 78,40 78,46 L78,52" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M24,52 L84,52 L78,96 L30,96 Z" />
-    <!-- 袋子折痕 -->
-    <path
-        android:fillColor="#CCCCCC"
-        android:pathData="M54,52 L54,96" />
+    <!-- 左触角 -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#FFFFFF" android:strokeWidth="2"
+        android:pathData="M46,28 L42,18" />
+    <path android:fillColor="#FFFFFF" android:pathData="M42,18 C40,16 44,14 44,18 Z" />
+    <!-- 右触角 -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#FFFFFF" android:strokeWidth="2"
+        android:pathData="M62,28 L66,18" />
+    <path android:fillColor="#FFFFFF" android:pathData="M66,18 C68,16 64,14 64,18 Z" />
+    <!-- 左翅膀 -->
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.7"
+        android:pathData="M38,36 C22,26 24,44 40,42 Z" />
+    <!-- 右翅膀 -->
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.7"
+        android:pathData="M70,36 C86,26 84,44 68,42 Z" />
+    <!-- 蜜蜂身体 -->
+    <path android:fillColor="#FFD700"
+        android:pathData="M44,30 C44,24 64,24 64,30 C66,34 66,54 64,58 C62,62 46,62 44,58 C42,54 42,34 44,30 Z" />
+    <!-- 头部 -->
+    <path android:fillColor="#FFD700"
+        android:pathData="M46,28 C46,22 62,22 62,28 C64,32 64,36 62,38 L46,38 C44,36 44,32 46,28 Z" />
+    <!-- 条纹 -->
+    <path android:fillColor="#333333" android:pathData="M44,40 L64,40 L64,43 L44,43 Z" />
+    <path android:fillColor="#333333" android:pathData="M44,48 L64,48 L64,51 L44,51 Z" />
+    <path android:fillColor="#333333" android:pathData="M44,56 L64,56 L64,57 L44,57 Z" />
+    <!-- 眼睛 -->
+    <path android:fillColor="#FFFFFF" android:pathData="M49,31 C49,29 53,29 53,31 C53,33 49,33 49,31 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M55,31 C55,29 59,29 59,31 C59,33 55,33 55,31 Z" />
+    <path android:fillColor="#333333" android:pathData="M51,31 C50,30 52,30 52,31 C52,32 50,32 51,31 Z" />
+    <path android:fillColor="#333333" android:pathData="M57,31 C56,30 58,30 58,31 C58,32 56,32 57,31 Z" />
+    <!-- 嘴巴 -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#333333" android:strokeWidth="1.5"
+        android:pathData="M52,35 C54,37 56,37 58,35" />
+    <!-- 左手臂 -->
+    <path android:fillColor="#FFD700" android:pathData="M42,44 C38,46 36,50 38,54 L42,52 C40,48 42,46 44,44 Z" />
+    <!-- 右手臂 -->
+    <path android:fillColor="#FFD700" android:pathData="M66,44 C70,46 72,50 70,54 L66,52 C68,48 66,46 64,44 Z" />
+    <!-- 购物袋 -->
+    <path android:fillColor="#FFFFFF" android:pathData="M37,56 L37,52 C37,50 39,49 41,49 L67,49 C69,49 71,50 71,52 L71,56" />
+    <path android:fillColor="#FFFFFF" android:pathData="M35,56 L73,56 L70,82 L38,82 Z" />
+    <!-- 袋口 -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#CCCCCC" android:strokeWidth="1"
+        android:pathData="M38,58 L70,58" />
     <!-- 提手 -->
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5"
-        android:pathData="M36,52 C36,40 72,40 72,52" />
-    <!-- 蜜蜂身体 - 椭圆 -->
-    <path
-        android:fillColor="#FFD700"
-        android:pathData="M42,24 C38,20 40,14 54,14 C68,14 70,20 66,24 C70,26 72,34 66,38 C62,42 46,42 42,38 C36,34 38,26 42,24 Z" />
-    <!-- 蜜蜂条纹 -->
-    <path
-        android:fillColor="#333333"
-        android:pathData="M43,26 L65,26 L65,29 L43,29 Z" />
-    <path
-        android:fillColor="#333333"
-        android:pathData="M43,32 L65,32 L65,34 L43,34 Z" />
-    <path
-        android:fillColor="#333333"
-        android:pathData="M43,37 L65,37 L65,38 L43,38 Z" />
-    <!-- 蜜蜂左翅膀 -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.9"
-        android:pathData="M42,22 C30,14 24,18 36,26 Z" />
-    <!-- 蜜蜂右翅膀 -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:fillAlpha="0.9"
-        android:pathData="M66,22 C78,14 84,18 72,26 Z" />
-    <!-- 蜜蜂眼睛 -->
-    <path
-        android:fillColor="#333333"
-        android:pathData="M51,20 C51,19 53,19 53,20 C53,21 51,21 51,20 Z" />
-    <path
-        android:fillColor="#333333"
-        android:pathData="M55,20 C55,19 57,19 57,20 C57,21 55,21 55,20 Z" />
-    <!-- 触角 -->
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#333333"
-        android:strokeWidth="1.5"
-        android:pathData="M50,16 L48,11 M58,16 L60,11" />
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#FFFFFF" android:strokeWidth="2.5"
+        android:pathData="M43,54 C43,49 65,49 65,54" />
+    <!-- 蜜蜂小脚 -->
+    <path android:fillColor="#FFD700" android:pathData="M47,62 L47,68 C47,70 45,70 45,68 L45,62 Z" />
+    <path android:fillColor="#FFD700" android:pathData="M61,62 L61,68 C61,70 63,70 63,68 L63,62 Z" />
 </vector>
