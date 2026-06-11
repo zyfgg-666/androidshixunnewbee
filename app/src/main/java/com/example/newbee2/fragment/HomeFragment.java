@@ -136,9 +136,11 @@ public class HomeFragment extends Fragment {
             goDetail(goods.getGoodsId());
         });
 
-        // 分类点击跳转到分类Tab
+        // 分类点击跳转到分类Tab，并选中对应分类
         gvCategory.setOnItemClickListener((parent, v, position, id) -> {
-            if (getActivity() != null) {
+            if (getActivity() != null && position < categoryList.size()) {
+                Long categoryId = categoryList.get(position).getCategoryId();
+                com.example.newbee2.fragment.CategoryFragment.setPendingCategory(categoryId);
                 ((com.example.newbee2.MainActivity) getActivity()).switchToTab(1);
             }
         });

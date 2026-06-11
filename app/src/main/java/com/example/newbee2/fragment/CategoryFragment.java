@@ -35,6 +35,11 @@ public class CategoryFragment extends Fragment {
     private GoodsAdapter goodsAdapter;
     private List<Category> categoryList = new ArrayList<>();
     private List<Goods> goodsList = new ArrayList<>();
+    private static Long pendingCategoryId = null;
+
+    public static void setPendingCategory(Long categoryId) {
+        pendingCategoryId = categoryId;
+    }
 
     @Nullable
     @Override
@@ -74,6 +79,29 @@ public class CategoryFragment extends Fragment {
         loadCategories();
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        // 如果已在分类页且未加载过类别，加载一次
+        if (categoryList.isEmpty()) {
+            loadCategories();
+        } else if (pendingCategoryId != null) {
+            // 已加载过类别，直接选择待选分类
+            int targetPos = 0;
+            for (int i = 0; i < categoryList.size(); i++) {
+                if (categoryList.get(i).getCategoryId().equals(pendingCategoryId)) {
+                    targetPos = i;
+                    break;
+                }
+            }
+            pendingCategoryId = null;
+            final int pos = targetPos;
+            leftAdapter.setSelectedPosition(pos);
+            Category selected = categoryList.get(pos);
+            loadGoodsByCategory(selected.getCategoryId(), selected.getCategoryName());
+        }
+    }
+
     private void loadCategories() {
         HttpUtil.get(HttpUtil.BASE_URL + "/categories", new HttpUtil.HttpCallback<String>() {
             @Override
@@ -89,9 +117,20 @@ public class CategoryFragment extends Fragment {
                             getActivity().runOnUiThread(() -> {
                                 leftAdapter.notifyDataSetChanged();
                                 if (!categoryList.isEmpty()) {
-                                    leftAdapter.setSelectedPosition(0);
-                                    Category first = categoryList.get(0);
-                                    loadGoodsByCategory(first.getCategoryId(), first.getCategoryName());
+                                    // 检查是否有待选的分类
+                                    int targetPosition = 0;
+                                    if (pendingCategoryId != null) {
+                                        for (int i = 0; i < categoryList.size(); i++) {
+                                            if (categoryList.get(i).getCategoryId().equals(pendingCategoryId)) {
+                                                targetPosition = i;
+                                                break;
+                                            }
+                                        }
+                                        pendingCategoryId = null; // 清除
+                                    }
+                                    leftAdapter.setSelectedPosition(targetPosition);
+                                    Category selected = categoryList.get(targetPosition);
+                                    loadGoodsByCategory(selected.getCategoryId(), selected.getCategoryName());
                                 }
                             });
                         }
