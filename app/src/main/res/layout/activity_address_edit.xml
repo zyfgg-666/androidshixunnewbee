@@ -72,7 +72,7 @@
             android:id="@+id/tv_region"
             android:layout_width="match_parent"
             android:layout_height="45dp"
-            android:drawableEnd="@android:drawable/ic_media_play"
+            android:drawableEnd="@drawable/ic_arrow_right"
             android:gravity="center_vertical"
             android:hint="请选择省/市/区"
             android:textColorHint="#CCCCCC"
