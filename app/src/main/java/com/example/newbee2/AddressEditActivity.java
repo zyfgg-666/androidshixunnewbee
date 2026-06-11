@@ -272,17 +272,17 @@ public class AddressEditActivity extends AppCompatActivity {
         String cityName = parts.length > 1 ? parts[1] : "";
         String regionName = parts.length > 2 ? parts[2] : "";
 
-        Map<String, String> params = new HashMap<>();
+        Map<String, Object> params = new HashMap<>();
         params.put("userName", name);
         params.put("userPhone", phone);
         params.put("provinceName", provinceName);
         params.put("cityName", cityName);
         params.put("regionName", regionName);
         params.put("detailAddress", detail);
-        params.put("defaultFlag", "1");
+        params.put("defaultFlag", 1);
 
         if (addressId != null) {
-            params.put("addressId", String.valueOf(addressId));
+            params.put("addressId", addressId);
             HttpUtil.put(HttpUtil.BASE_URL + "/address", params, new HttpUtil.HttpCallback<String>() {
                 @Override
                 public void onSuccess(String data) {
