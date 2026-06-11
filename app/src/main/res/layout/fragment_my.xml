@@ -3,6 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F5F5F5"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:orientation="vertical">
 
     <!-- 用户信息卡片 - 青绿色渐变背景 -->
@@ -118,6 +120,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:clipChildren="false"
                 android:gravity="center"
                 android:orientation="vertical">
 
@@ -180,6 +183,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:clipChildren="false"
                 android:gravity="center"
                 android:orientation="vertical">
 
@@ -221,6 +225,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:clipChildren="false"
                 android:gravity="center"
                 android:orientation="vertical">
 
