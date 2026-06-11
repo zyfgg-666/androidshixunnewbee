@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <!-- 购物车车身 -->
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.9"
+        android:pathData="M25,75 L25,70 C25,65 28,58 40,55 L80,55 C92,58 95,65 95,70 L95,75" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.9"
+        android:pathData="M22,75 L98,75 L92,105 L28,105 Z" />
+    <!-- 购物车横线 -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#88FFFFFF" android:strokeWidth="1"
+        android:pathData="M28,82 L92,82" />
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#88FFFFFF" android:strokeWidth="1"
+        android:pathData="M28,90 L92,90" />
+    <!-- 购物车推手 -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#FFFFFF" android:strokeWidth="3"
+        android:pathData="M22,70 L22,60 L30,55" />
+    <!-- 购物车把手 -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#FFFFFF" android:strokeWidth="4"
+        android:pathData="M22,60 L30,60" />
+    <!-- 左车轮 -->
+    <path android:fillColor="#FFFFFF" android:pathData="M40,105 C40,100 50,100 50,105 C50,110 40,110 40,105 Z" />
+    <path android:fillColor="#333333" android:pathData="M42,105 C42,102 48,102 48,105 C48,108 42,108 42,105 Z" />
+    <!-- 右车轮 -->
+    <path android:fillColor="#FFFFFF" android:pathData="M80,105 C80,100 90,100 90,105 C90,110 80,110 80,105 Z" />
+    <path android:fillColor="#333333" android:pathData="M82,105 C82,102 88,102 88,105 C88,108 82,108 82,105 Z" />
+    <!-- 蜜蜂身体（在推车后面） -->
+    <path android:fillColor="#FFD700"
+        android:pathData="M32,42 C32,36 46,36 46,42 L50,42 C50,62 48,72 44,74 C40,76 36,74 34,72 C30,68 30,50 32,42 Z" />
+    <!-- 蜜蜂头部 -->
+    <path android:fillColor="#FFD700"
+        android:pathData="M34,38 C34,30 50,30 50,38 C52,44 52,48 50,50 L34,50 C32,48 32,44 34,38 Z" />
+    <!-- 条纹 -->
+    <path android:fillColor="#333333" android:pathData="M32,52 L52,52 L52,55 L32,55 Z" />
+    <path android:fillColor="#333333" android:pathData="M32,60 L52,60 L52,63 L32,63 Z" />
+    <path android:fillColor="#333333" android:pathData="M32,68 L52,68 L52,70 L32,70 Z" />
+    <!-- 触角 -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#FFFFFF" android:strokeWidth="2"
+        android:pathData="M37,34 L32,22 M47,34 L52,22" />
+    <path android:fillColor="#FFFFFF" android:pathData="M32,22 C30,19 34,17 34,22 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M52,22 C54,19 50,17 50,22 Z" />
+    <!-- 白色翅膀 -->
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.8"
+        android:pathData="M24,44 C14,32 16,52 30,48 Z" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.8"
+        android:pathData="M60,44 C70,32 68,52 54,48 Z" />
+    <!-- 眼睛 -->
+    <path android:fillColor="#FFFFFF" android:pathData="M38,38 C38,35 43,35 43,38 C43,41 38,41 38,38 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M45,38 C45,35 50,35 50,38 C50,41 45,41 45,38 Z" />
+    <path android:fillColor="#333333" android:pathData="M40,38 C39,37 41,37 41,38 C41,39 39,39 40,38 Z" />
+    <path android:fillColor="#333333" android:pathData="M47,38 C46,37 48,37 48,38 C48,39 46,39 47,38 Z" />
+    <!-- 嘴巴 -->
+    <path android:fillColor="@android:color/transparent" android:strokeColor="#333333" android:strokeWidth="1.5"
+        android:pathData="M42,44 C44,46 46,46 48,44" />
+    <!-- 手臂推车 -->
+    <path android:fillColor="#FFD700" android:pathData="M50,50 L56,48 L56,54 L50,54 Z" />
+    <path android:fillColor="#FFD700" android:pathData="M50,55 L56,56 L56,62 L50,62 Z" />
+</vector>
