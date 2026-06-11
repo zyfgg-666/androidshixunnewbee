@@ -5,7 +5,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.example.newbee2.R;
@@ -20,17 +19,17 @@ public class CategoryGridAdapter extends BaseAdapter {
     private Context context;
     private List<Category> categoryList;
     private LayoutInflater inflater;
-    private static final Map<String, Integer> CATEGORY_ICONS = new HashMap<>();
+    private static final Map<String, Integer> CATEGORY_BG = new HashMap<>();
     static {
-        CATEGORY_ICONS.put("家电", R.drawable.ic_cat_elec);
-        CATEGORY_ICONS.put("女装", R.drawable.ic_cat_clothes);
-        CATEGORY_ICONS.put("家具", R.drawable.ic_cat_furniture);
-        CATEGORY_ICONS.put("运动", R.drawable.ic_cat_sport);
-        CATEGORY_ICONS.put("游戏", R.drawable.ic_cat_game);
-        CATEGORY_ICONS.put("美妆", R.drawable.ic_cat_beauty);
-        CATEGORY_ICONS.put("工具", R.drawable.ic_cat_tool);
-        CATEGORY_ICONS.put("鞋靴", R.drawable.ic_cat_shoes);
-        CATEGORY_ICONS.put("玩具", R.drawable.ic_cat_toy);
+        CATEGORY_BG.put("家电", R.drawable.bg_cat_elec);      // 橙色
+        CATEGORY_BG.put("女装", R.drawable.bg_cat_clothes);    // 粉色
+        CATEGORY_BG.put("家具", R.drawable.bg_cat_furniture);  // 棕色
+        CATEGORY_BG.put("运动", R.drawable.bg_cat_sport);      // 绿色
+        CATEGORY_BG.put("游戏", R.drawable.bg_cat_game);       // 紫色
+        CATEGORY_BG.put("美妆", R.drawable.bg_cat_beauty);     // 玫红
+        CATEGORY_BG.put("工具", R.drawable.bg_cat_tool);       // 蓝灰
+        CATEGORY_BG.put("鞋靴", R.drawable.bg_cat_shoes);      // 蓝色
+        CATEGORY_BG.put("玩具", R.drawable.bg_cat_toy);        // 橙色
     }
 
     public CategoryGridAdapter(Context context, List<Category> categoryList) {
@@ -60,7 +59,8 @@ public class CategoryGridAdapter extends BaseAdapter {
         if (convertView == null) {
             convertView = inflater.inflate(R.layout.item_category_grid, parent, false);
             holder = new ViewHolder();
-            holder.ivIcon = convertView.findViewById(R.id.iv_icon);
+            holder.vBg = convertView.findViewById(R.id.v_bg);
+            holder.tvChar = convertView.findViewById(R.id.tv_char);
             holder.tvName = convertView.findViewById(R.id.tv_name);
             convertView.setTag(holder);
         } else {
@@ -69,26 +69,26 @@ public class CategoryGridAdapter extends BaseAdapter {
 
         Category category = categoryList.get(position);
 
-        int iconRes = getIconForCategory(category.getCategoryName());
-        holder.ivIcon.setImageResource(iconRes);
+        String firstWord = getFirstWord(category.getCategoryName());
+        int bgRes = CATEGORY_BG.containsKey(firstWord) ? CATEGORY_BG.get(firstWord) : R.drawable.bg_badge;
+        holder.vBg.setBackgroundResource(bgRes);
+
+        // 显示第一个汉字
+        String ch = (firstWord != null && !firstWord.isEmpty()) ? String.valueOf(firstWord.charAt(0)) : "?";
+        holder.tvChar.setText(ch);
         holder.tvName.setText(category.getCategoryName());
 
         return convertView;
     }
 
-    private int getIconForCategory(String categoryName) {
-        if (categoryName == null) return R.drawable.ic_category;
-
-        String firstWord = categoryName.split("\\s+")[0];
-
-        if (CATEGORY_ICONS.containsKey(firstWord)) {
-            return CATEGORY_ICONS.get(firstWord);
-        }
-        return R.drawable.ic_category;
+    private String getFirstWord(String name) {
+        if (name == null) return "其他";
+        return name.split("\\s+")[0];
     }
 
     static class ViewHolder {
-        ImageView ivIcon;
+        View vBg;
+        TextView tvChar;
         TextView tvName;
     }
 }
