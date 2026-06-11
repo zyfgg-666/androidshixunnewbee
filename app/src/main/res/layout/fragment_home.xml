@@ -63,14 +63,11 @@
             </LinearLayout>
 
             <!-- 个人中心按钮 -->
-            <TextView
+            <ImageView
                 android:id="@+id/tv_my_center"
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
-                android:gravity="center"
-                android:text="👤"
-                android:textColor="#FFFFFF"
-                android:textSize="20sp"
+                android:src="@drawable/ic_my"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp" />
         </LinearLayout>
