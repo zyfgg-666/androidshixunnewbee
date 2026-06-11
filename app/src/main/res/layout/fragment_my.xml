@@ -71,6 +71,8 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
         android:background="#FFFFFF"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:orientation="vertical"
         android:padding="15dp">
 
@@ -86,6 +88,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="15dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:orientation="horizontal">
 
             <LinearLayout
@@ -119,7 +123,9 @@
 
                 <FrameLayout
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content">
+                    android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:clipToPadding="false">
 
                     <ImageView
                         android:layout_width="30dp"
@@ -179,7 +185,9 @@
 
                 <FrameLayout
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content">
+                    android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:clipToPadding="false">
 
                     <ImageView
                         android:layout_width="30dp"
@@ -218,7 +226,9 @@
 
                 <FrameLayout
                     android:layout_width="wrap_content"
-                    android:layout_height="wrap_content">
+                    android:layout_height="wrap_content"
+                    android:clipChildren="false"
+                    android:clipToPadding="false">
 
                     <ImageView
                         android:layout_width="30dp"
