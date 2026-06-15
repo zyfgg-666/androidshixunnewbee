@@ -1,0 +1,1859 @@
+================================================================================
+              新蜂商城 (NewBee2) 项目代码汇总
+                 按界面模块整理
+================================================================================
+
+注意事项:
+  1. HttpURLConnection 是当前使用的版本,OkHttp 完整代码已注释保留在文件底部
+  2. 文档过长,Linux看文档用"/关键字",Windows看文档用"Ctrl+F查找"
+
+================================================================================
+目 录
+================================================================================
+  模块一   : 网络层 - HttpUtil
+  模块二   : 工具类 - MD5Util / ImageUtil
+  模块三   : 数据模型 - Model
+  模块四   : 启动页 - SplashActivity
+  模块五   : 主框架 - MainActivity
+  模块六   : 登录注册 - LoginActivity
+  模块七   : 首页 - HomeFragment
+  模块八   : 分类页 - CategoryFragment
+  模块九   : 搜索页 - SearchActivity
+  模块十   : 商品详情 - DetailActivity
+  模块十一 : 购物车 - CartFragment
+  模块十二 : 创建订单 - CreateOrderActivity
+  模块十三 : 订单列表 - OrderListActivity
+  模块十四 : 地址管理 - AddressListActivity + AddressEditActivity
+  模块十五 : 我的 - MyFragment
+  模块十六 : 关于我们 - AboutActivity
+  模块十七 : 自定义控件 - MyGridView
+  模块十八 : AndroidManifest.xml
+
+
+================================================================================
+模块一：网络层
+================================================================================
+
+文件: app/src/main/java/com/example/newbee2/utils/HttpUtil.java
+--------------------------------------------------------------------------------
+
+package com.example.newbee2.utils;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+import com.google.gson.Gson;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class HttpUtil {
+
+    public static final String BASE_URL = "http://172.30.130.131:28019/mallapi/api/v1";
+    private static final Gson gson = new Gson();
+    private static final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private static Context appContext;
+    private static final ExecutorService threadPool = Executors.newFixedThreadPool(4);
+
+    // ---------- 初始化 ----------
+    public static void init(Context context) {
+        appContext = context.getApplicationContext();
+    }
+
+    // ---------- 回调接口 ----------
+    public interface HttpCallback<T> {
+        void onSuccess(T data);
+        void onError(String error);
+    }
+
+    // ---------- 获取Token ----------
+    private static String getToken() {
+        if (appContext == null) return "";
+        SharedPreferences info = appContext.getSharedPreferences("info", Context.MODE_PRIVATE);
+        return info.getString("token", "");
+    }
+
+    // ---------- GET 请求 ----------
+    public static void get(String url, HttpCallback<String> callback) {
+        threadPool.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL urlObj = new URL(url);
+                conn = (HttpURLConnection) urlObj.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("token", getToken());
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setConnectTimeout(30000);
+                conn.setReadTimeout(30000);
+                conn.connect();
+                int responseCode = conn.getResponseCode();
+                String body = readResponse(conn, responseCode);
+                mainHandler.post(() -> callback.onSuccess(body));
+            } catch (IOException e) {
+                Log.e("HttpUtil", "GET Error: " + e.getMessage());
+                mainHandler.post(() -> callback.onError(e.getMessage()));
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
+    // ---------- POST 表单请求 ----------
+    public static void postForm(String url, Map<String, String> params,
+                                 HttpCallback<String> callback) {
+        threadPool.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL urlObj = new URL(url);
+                conn = (HttpURLConnection) urlObj.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("token", getToken());
+                conn.setRequestProperty("Content-Type",
+                    "application/x-www-form-urlencoded");
+                conn.setConnectTimeout(30000);
+                conn.setReadTimeout(30000);
+                conn.setDoOutput(true);
+
+                StringBuilder formBody = new StringBuilder();
+                if (params != null) {
+                    for (Map.Entry<String, String> e : params.entrySet()) {
+                        if (formBody.length() > 0) formBody.append("&");
+                        formBody.append(e.getKey()).append("=").append(e.getValue());
+                    }
+                }
+                OutputStream os = conn.getOutputStream();
+                os.write(formBody.toString().getBytes("UTF-8"));
+                os.flush(); os.close();
+
+                int responseCode = conn.getResponseCode();
+                String body = readResponse(conn, responseCode);
+                mainHandler.post(() -> callback.onSuccess(body));
+            } catch (IOException e) {
+                Log.e("HttpUtil", "POST Form Error: " + e.getMessage());
+                mainHandler.post(() -> callback.onError(e.getMessage()));
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
+    // ---------- POST JSON 请求 ----------
+    public static void postJson(String url, Object obj,
+                                 HttpCallback<String> callback) {
+        threadPool.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                String json = gson.toJson(obj);
+                Log.d("HttpUtil", "POST JSON URL: " + url);
+                Log.d("HttpUtil", "POST JSON Body: " + json);
+
+                URL urlObj = new URL(url);
+                conn = (HttpURLConnection) urlObj.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("token", getToken());
+                conn.setRequestProperty("Content-Type",
+                    "application/json; charset=utf-8");
+                conn.setConnectTimeout(30000);
+                conn.setReadTimeout(30000);
+                conn.setDoOutput(true);
+
+                OutputStream os = conn.getOutputStream();
+                os.write(json.getBytes("UTF-8"));
+                os.flush(); os.close();
+
+                int responseCode = conn.getResponseCode();
+                String resBody = readResponse(conn, responseCode);
+                Log.d("HttpUtil", "POST JSON Response: " + resBody);
+                mainHandler.post(() -> callback.onSuccess(resBody));
+            } catch (IOException e) {
+                Log.e("HttpUtil", "POST JSON Error: " + e.getMessage());
+                mainHandler.post(() -> callback.onError(e.getMessage()));
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
+    // ---------- PUT 请求 ----------
+    public static void put(String url, Object obj,
+                            HttpCallback<String> callback) {
+        threadPool.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                String json = gson.toJson(obj);
+                URL urlObj = new URL(url);
+                conn = (HttpURLConnection) urlObj.openConnection();
+                conn.setRequestMethod("PUT");
+                conn.setRequestProperty("token", getToken());
+                conn.setRequestProperty("Content-Type",
+                    "application/json; charset=utf-8");
+                conn.setConnectTimeout(30000);
+                conn.setReadTimeout(30000);
+                conn.setDoOutput(true);
+
+                OutputStream os = conn.getOutputStream();
+                os.write(json.getBytes("UTF-8"));
+                os.flush(); os.close();
+
+                int responseCode = conn.getResponseCode();
+                String resBody = readResponse(conn, responseCode);
+                mainHandler.post(() -> callback.onSuccess(resBody));
+            } catch (IOException e) {
+                mainHandler.post(() -> callback.onError(e.getMessage()));
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
+    // ---------- DELETE 请求 ----------
+    public static void delete(String url, HttpCallback<String> callback) {
+        threadPool.execute(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL urlObj = new URL(url);
+                conn = (HttpURLConnection) urlObj.openConnection();
+                conn.setRequestMethod("DELETE");
+                conn.setRequestProperty("token", getToken());
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setConnectTimeout(30000);
+                conn.setReadTimeout(30000);
+                conn.connect();
+
+                int responseCode = conn.getResponseCode();
+                String body = readResponse(conn, responseCode);
+                mainHandler.post(() -> callback.onSuccess(body));
+            } catch (IOException e) {
+                mainHandler.post(() -> callback.onError(e.getMessage()));
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        });
+    }
+
+    // ---------- 读取响应 ----------
+    private static String readResponse(HttpURLConnection conn,
+            int responseCode) throws IOException {
+        InputStream inputStream;
+        if (responseCode >= 200 && responseCode < 300) {
+            inputStream = conn.getInputStream();
+        } else {
+            inputStream = conn.getErrorStream();
+        }
+        if (inputStream == null) return "";
+
+        BufferedReader reader = new BufferedReader(
+            new InputStreamReader(inputStream, "UTF-8"));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            sb.append(line);
+        }
+        reader.close();
+        inputStream.close();
+        return sb.toString();
+    }
+
+    public static Gson getGson() { return gson; }
+}
+
+
+================================================================================
+模块二：工具类
+================================================================================
+
+文件: app/src/main/java/com/example/newbee2/utils/MD5Util.java
+--------------------------------------------------------------------------------
+
+package com.example.newbee2.utils;
+
+import java.security.MessageDigest;
+
+public class MD5Util {
+    public static String md5(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(input.getBytes());
+            StringBuilder sb = new StringBuilder();
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b & 0xff));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return input;
+        }
+    }
+}
+
+──────────────────────────────────────────────────────────────────────────────
+
+文件: app/src/main/java/com/example/newbee2/utils/ImageUtil.java
+--------------------------------------------------------------------------------
+
+package com.example.newbee2.utils;
+
+import android.widget.ImageView;
+import com.bumptech.glide.Glide;
+import com.example.newbee2.R;
+
+public class ImageUtil {
+
+    private static final String IMAGE_BASE = "http://172.30.130.131:28019/mallapi";
+
+    public static void loadImage(ImageView imageView, String url) {
+        if (url == null || url.isEmpty()) {
+            imageView.setImageResource(R.mipmap.ic_launcher);
+            return;
+        }
+        String fullUrl;
+        if (url.startsWith("http")) {
+            fullUrl = url;
+        } else {
+            fullUrl = IMAGE_BASE + url;  // 补全相对路径
+        }
+        Glide.with(imageView.getContext())
+                .load(fullUrl)
+                .placeholder(R.mipmap.ic_launcher)
+                .error(R.mipmap.ic_launcher)
+                .into(imageView);
+    }
+
+    public static void loadImage(ImageView imageView, int resId) {
+        Glide.with(imageView.getContext()).load(resId).into(imageView);
+    }
+}
+
+
+================================================================================
+模块三：数据模型 (Model)
+================================================================================
+
+文件: app/src/main/java/com/example/newbee2/model/Result.java
+--------------------------------------------------------------------------------
+// 统一接口响应包装类
+public class Result<T> {
+    private int resultCode;   // 200=成功
+    private String message;   // 错误信息
+    private T data;           // 泛型数据
+    public boolean isSuccess() { return resultCode == 200; }
+    // + getters & setters
+}
+
+──────────────────────────────────────────────────────────────────────────────
+
+文件: app/src/main/java/com/example/newbee2/model/User.java
+--------------------------------------------------------------------------------
+public class User {
+    private Long userId;
+    private String nickName;
+    private String loginName;
+    private String passwordMd5;
+    private String introduceSign;
+    // + getters & setters
+}
+
+──────────────────────────────────────────────────────────────────────────────
+
+文件: app/src/main/java/com/example/newbee2/model/Goods.java
+--------------------------------------------------------------------------------
+public class Goods {
+    private Long goodsId;
+    private String goodsName;
+    private String goodsIntro;
+    private Long goodsCategoryId;
+    private String goodsCoverImg;
+    private Integer sellingPrice;
+    private Integer originalPrice;
+    private String tag;
+    // + getters & setters
+}
+
+──────────────────────────────────────────────────────────────────────────────
+
+文件: app/src/main/java/com/example/newbee2/model/Category.java
+--------------------------------------------------------------------------------
+public class Category {
+    private Long categoryId;
+    private String categoryName;
+    private Integer categoryLevel;
+    private Long parentId;
+    // + getters & setters
+}
+
+──────────────────────────────────────────────────────────────────────────────
+
+文件: app/src/main/java/com/example/newbee2/model/CartItem.java
+--------------------------------------------------------------------------------
+public class CartItem {
+    private Long cartItemId;
+    private Long goodsId;
+    private Integer goodsCount;
+    private String goodsName;
+    private String goodsCoverImg;
+    private Integer sellingPrice;
+    private boolean selected; // 本地字段,不传给服务器
+    // + getters & setters
+}
+
+──────────────────────────────────────────────────────────────────────────────
+
+文件: app/src/main/java/com/example/newbee2/model/Order.java
+--------------------------------------------------------------------------------
+public class Order {
+    private Long orderId;
+    private String orderNo;
+    private Long userId;
+    private Integer totalPrice;
+    private Integer orderStatus; // 0待支付1待确认2待发货3待收货4已完成
+    private String createTime;
+    private List<OrderItem> orderItems;
+
+    public String getStatusText() {
+        if (orderStatus == null) return "未知";
+        switch (orderStatus) {
+            case 0: return "待支付";
+            case 1: return "待确认";
+            case 2: return "待发货";
+            case 3: return "待收货";
+            case 4: return "已完成";
+            default: return "未知";
+        }
+    }
+    // + getters & setters
+}
+
+──────────────────────────────────────────────────────────────────────────────
+
+文件: app/src/main/java/com/example/newbee2/model/OrderItem.java
+--------------------------------------------------------------------------------
+public class OrderItem {
+    private Long orderItemId;
+    private Long goodsId;
+    private Integer goodsCount;
+    private String goodsName;
+    private String goodsCoverImg;
+    private Integer sellingPrice;
+    // + getters & setters
+}
+
+──────────────────────────────────────────────────────────────────────────────
+
+文件: app/src/main/java/com/example/newbee2/model/Address.java
+--------------------------------------------------------------------------------
+public class Address {
+    private Long addressId;
+    private String userName;
+    private String userPhone;
+    private String provinceName;
+    private String cityName;
+    private String regionName;
+    private String detailAddress;
+    private Integer defaultFlag;
+
+    public String getFullAddress() {
+        return provinceName + cityName + regionName + detailAddress;
+    }
+    // + getters & setters
+}
+
+──────────────────────────────────────────────────────────────────────────────
+
+文件: app/src/main/java/com/example/newbee2/model/RegionData.java (省市区数据)
+--------------------------------------------------------------------------------
+public class RegionData {
+    public static class City {
+        public String name;
+        public List<String> districts;
+    }
+    public static class Province {
+        public String name;
+        public List<City> cities;
+    }
+    // 硬编码了31个省、直辖市的市和区县数据
+    // 例如:
+    // new Province("广东省",
+    //     new City("广州市", "天河区","越秀区","海珠区",...),
+    //     new City("深圳市", "南山区","福田区","罗湖区",...))
+    public static List<Province> getProvinces() { ... }
+    public static List<City> getCities(int provinceIndex) { ... }
+    public static List<String> getDistricts(int p, int c) { ... }
+}
+
+
+================================================================================
+模块四：启动页
+================================================================================
+
+Java文件: SplashActivity.java
+--------------------------------------------------------------------------------
+package com.example.newbee2;
+
+public class SplashActivity extends AppCompatActivity {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_splash);
+        HttpUtil.init(this);  // 初始化网络工具
+        // 2秒后跳转主页
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            startActivity(new Intent(SplashActivity.this, MainActivity.class));
+            finish();
+        }, 2000);
+    }
+}
+
+Layout文件: activity_splash.xml
+--------------------------------------------------------------------------------
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_gradient_teal"   ← 青绿渐变背景
+    android:gravity="center"
+    android:orientation="vertical">
+
+    <ImageView       ← 蜜蜂推购物车Logo (ic_bee_cart.xml, 120dp)
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:src="@drawable/ic_bee_cart" />
+
+    <TextView        ← 应用名 "新蜂商城" 白色粗体28sp
+        android:text="新蜂商城"
+        android:textColor="#FFFFFF" android:textSize="28sp" android:textStyle="bold" />
+
+    <TextView        ← 副标题 "品质生活 · 触手可及"
+        android:text="品质生活 · 触手可及"
+        android:textColor="#CCFFFFFF" android:textSize="14sp" />
+
+    <TextView        ← 版本号 v1.0.0
+        android:text="v1.0.0" android:textColor="#88FFFFFF" />
+</LinearLayout>
+
+AndroidManifest中声明为启动Activity:
+  <activity android:name=".SplashActivity" android:exported="true"
+      android:theme="@style/Theme.NewBee2.Splash">
+      <intent-filter>
+          <action android:name="android.intent.action.MAIN" />
+          <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+  </activity>
+
+
+================================================================================
+模块五：主框架
+================================================================================
+
+Java文件: MainActivity.java
+--------------------------------------------------------------------------------
+package com.example.newbee2;
+
+public class MainActivity extends AppCompatActivity {
+    private ViewPager2 viewPager;
+    private BottomNavigationView bottomNav;
+    private BadgeDrawable cartBadge;
+    private static MainActivity instance;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        instance = this;
+        setContentView(R.layout.activity_main);
+        HttpUtil.init(this);
+        initView();
+        // 处理外部跳转的tab参数（例如 DetailActivity → 购物车tab=2）
+        int targetTab = getIntent().getIntExtra("tab", -1);
+        if (targetTab >= 0 && targetTab <= 3) {
+            viewPager.setCurrentItem(targetTab, false);
+        }
+    }
+
+    private void initView() {
+        // FragmentStateAdapter 管理4个Fragment
+        viewPager.setAdapter(new FragmentStateAdapter(this) {
+            public int getItemCount() { return 4; }
+            public Fragment createFragment(int pos) {
+                switch (pos) {
+                    case 0: return new HomeFragment();
+                    case 1: return new CategoryFragment();
+                    case 2: return new CartFragment();
+                    case 3: return new MyFragment();
+                }
+            }
+        });
+        viewPager.setUserInputEnabled(false); // 禁止滑动
+
+        // ViewPager ↔ BottomNav 双向联动
+        viewPager.registerOnPageChangeCallback(...);
+        bottomNav.setOnItemSelectedListener(item -> { ... });
+    }
+
+    // 供Fragment调用切换Tab
+    public void switchToTab(int index) {
+        viewPager.setCurrentItem(index, false);
+    }
+
+    // 加载购物车角标数量
+    public void loadCartCount() {
+        HttpUtil.get("/shop-cart", callback -> {
+            int count = result.getData().size();
+            updateCartBadge(count);
+        });
+    }
+
+    // 静态方法供其他Activity调用刷新角标
+    public static void loadCartCountStatic(Context ctx) {
+        if (instance != null) instance.loadCartCount();
+    }
+
+    private void updateCartBadge(int count) {
+        if (cartBadge == null) {
+            cartBadge = bottomNav.getOrCreateBadge(R.id.nav_cart);
+        }
+        if (count > 0) {
+            cartBadge.setVisible(true);
+            cartBadge.setNumber(count);
+        } else {
+            cartBadge.setVisible(false);
+        }
+    }
+}
+
+Layout文件: activity_main.xml
+--------------------------------------------------------------------------------
+<androidx.constraintlayout.widget.ConstraintLayout
+    android:id="@+id/main">
+
+    <ViewPager2      ← 4个Fragment页面
+        android:id="@+id/view_pager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toTopOf="@id/bottom_nav"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottom_nav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:menu="@menu/bottom_nav_menu"              ← 4个Tab
+        app:labelVisibilityMode="labeled" />
+
+底部导航菜单 (bottom_nav_menu.xml):
+  <item android:id="@+id/nav_home"     android:icon="@drawable/ic_home"      android:title="首页" />
+  <item android:id="@+id/nav_category" android:icon="@drawable/ic_category"  android:title="分类" />
+  <item android:id="@+id/nav_cart"     android:icon="@drawable/ic_cart"      android:title="购物车" />
+  <item android:id="@+id/nav_my"       android:icon="@drawable/ic_my"        android:title="我的" />
+
+
+================================================================================
+模块六：登录注册
+================================================================================
+
+Java文件: LoginActivity.java
+--------------------------------------------------------------------------------
+package com.example.newbee2;
+
+public class LoginActivity extends AppCompatActivity {
+    private EditText etUsername, etPassword;
+    private Button btnLogin;
+    private TextView tvRegister, tvTestLogin;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        ...
+        btnLogin.setOnClickListener(v -> doLogin());
+        tvTestLogin.setOnClickListener(v -> {
+            // 一键填入测试账号 13900139000 / 12345678
+            etUsername.setText("13900139000");
+            etPassword.setText("12345678");
+            doLogin();
+        });
+        tvRegister.setOnClickListener(v -> doRegister());
+    }
+
+    private void doLogin() {
+        Map<String, String> params = new HashMap<>();
+        params.put("loginName", username);           // 用户名
+        params.put("passwordMd5", MD5Util.md5(pwd)); // MD5加密后的密码
+
+        HttpUtil.postJson("/user/login", params, callback -> {
+            Result<String> result = parse(data);
+            if (result.isSuccess()) {
+                // ★ 保存Token到SharedPreferences
+                getSharedPreferences("info", MODE_PRIVATE)
+                    .edit().putString("token", result.getData()).apply();
+                finish(); // 登录成功，关闭登录页
+            } else {
+                Toast.makeText(this, result.getMessage(), ...);
+            }
+        });
+    }
+
+    private void doRegister() {
+        Map<String, String> params = new HashMap<>();
+        params.put("loginName", username);
+        params.put("password", password);
+
+        HttpUtil.postJson("/user/register", params, callback -> { ... });
+    }
+}
+
+Layout文件: activity_login.xml
+--------------------------------------------------------------------------------
+<LinearLayout android:gravity="center" android:padding="30dp">
+
+    <TextView text="新蜂商城" textSize="28sp" textStyle="bold"
+        android:layout_marginBottom="40dp" />
+
+    <EditText  ← 用户名输入
+        android:id="@+id/et_username"
+        android:hint="请输入用户名" />
+
+    <EditText  ← 密码输入
+        android:id="@+id/et_password"
+        android:inputType="textPassword"
+        android:hint="请输入密码" />
+
+    <Button    ← 登录按钮（橙色背景）
+        android:id="@+id/btn_login"
+        android:text="登录"
+        android:background="@drawable/bg_button_orange" />
+
+    <TextView  ← 注册链接
+        android:id="@+id/tv_register" android:text="注册账号" />
+
+    <TextView  ← 测试登录快捷入口
+        android:id="@+id/tv_test_login" android:text="测试登录(快速体验)" />
+</LinearLayout>
+
+
+================================================================================
+模块七：首页
+================================================================================
+
+Java文件: HomeFragment.java
+--------------------------------------------------------------------------------
+package com.example.newbee2.fragment;
+
+public class HomeFragment extends Fragment {
+    // -- 视图 --
+    private ViewPager2 vpBanner;           // 轮播图
+    private MyGridView gvCategory;         // 分类网格(每行4个)
+    private MyGridView gvNew, gvHot, gvLatest; // 三个商品板块
+    private LinearLayout llSearch;         // 搜索栏
+
+    // -- 适配器 --
+    private BannerAdapter bannerAdapter;
+    private CategoryGridAdapter categoryGridAdapter;
+    private GoodsAdapter newAdapter, hotAdapter, latestAdapter;
+
+    // -- 数据 --
+    private List<String> bannerUrls = new ArrayList<>();
+    private List<Category> categoryList = new ArrayList<>();
+    private List<Goods> newList, hotList, latestList;
+
+    // -- 自动轮播 --
+    private Handler bannerHandler = new Handler();
+    private Runnable bannerRunnable;
+    private static final long BANNER_DELAY = 3000; // 3秒
+
+    @Override
+    public void onViewCreated(View view, Bundle saved) {
+
+        // ① 搜索栏点击 → 搜索页
+        llSearch.setOnClickListener(v -> {
+            if (isLogin()) startActivity(new Intent(..., SearchActivity.class));
+            else startActivity(new Intent(..., LoginActivity.class));
+        });
+
+        // ② 用户图标点击 → 切换"我的"Tab
+        view.findViewById(R.id.tv_my_center).setOnClickListener(v ->
+            ((MainActivity) getActivity()).switchToTab(3));
+
+        // ③ 菜单(☰)点击 → 切换分类Tab
+        view.findViewById(R.id.tv_menu).setOnClickListener(v ->
+            ((MainActivity) getActivity()).switchToTab(1));
+
+        // ④ 初始化4个GridView的适配器
+        newAdapter = new GoodsAdapter(getActivity(), newList);
+        hotAdapter = new GoodsAdapter(getActivity(), hotList);
+        latestAdapter = new GoodsAdapter(getActivity(), latestList);
+        categoryGridAdapter = new CategoryGridAdapter(getActivity(), categoryList);
+
+        // ⑤ 轮播图适配器
+        bannerAdapter = new BannerAdapter(bannerUrls);
+        vpBanner.setAdapter(bannerAdapter);
+
+        // ⑥ 自动轮播Runnable
+        bannerRunnable = () -> {
+            if (!bannerUrls.isEmpty()) {
+                int next = (vpBanner.getCurrentItem() + 1) % bannerUrls.size();
+                vpBanner.setCurrentItem(next, true);
+            }
+            bannerHandler.postDelayed(bannerRunnable, BANNER_DELAY);
+        };
+
+        // ⑦ 商品点击 → 商品详情
+        gvNew.setOnItemClickListener((p, v, pos, id) ->
+            goDetail(newList.get(pos).getGoodsId()));
+
+        // ⑧ 分类点击 → 跳转分类Tab并选中
+        gvCategory.setOnItemClickListener((p, v, pos, id) -> {
+            CategoryFragment.setPendingCategory(
+                categoryList.get(pos).getCategoryId());
+            ((MainActivity) getActivity()).switchToTab(1);
+        });
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        loadData();
+        if (!bannerUrls.isEmpty()) bannerHandler.postDelayed(bannerRunnable, BANNER_DELAY);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        bannerHandler.removeCallbacks(bannerRunnable); // ★停止轮播
+    }
+
+    // 加载数据
+    private void loadData() {
+        loadBanner();   // /index-infos → 轮播+新品+热销+推荐
+        loadCategories(); // /categories → 分类列表
+    }
+
+    private void loadBanner() {
+        HttpUtil.get("/index-infos", callback -> {
+            // ★手动JsonObject解析（结构不标准）
+            JsonObject dataObj = json.getAsJsonObject("data");
+            // 轮播: data.carousels → bannerUrls
+            // 新品: data.newGoodses → newList
+            // 热销: data.hotGoodses → hotList
+            // 推荐: data.recommendGoodses → latestList
+            runOnUiThread(() -> {
+                bannerAdapter.notifyDataSetChanged();
+                newAdapter.notifyDataSetChanged();
+                hotAdapter.notifyDataSetChanged();
+                latestAdapter.notifyDataSetChanged();
+            });
+        });
+    }
+}
+
+Layout文件: fragment_home.xml (关键结构)
+--------------------------------------------------------------------------------
+<ScrollView android:background="#F5F5F5">
+
+    <LinearLayout android:orientation="vertical">
+
+        <!-- 搜索栏 (青绿色背景) -->
+        <LinearLayout android:background="#00C9A7" android:height="44dp">
+            <TextView android:id="@+id/tv_menu"     android:text="☰"          android:textColor="#FFFFFF" />  ← 菜单
+            <LinearLayout android:id="@+id/ll_search" android:background="@drawable/bg_search">  ← 搜索框(白底圆角)
+                <ImageView android:src="@android:drawable/ic_menu_search" />
+                <TextView  android:text="搜索商品" android:textColor="#999999" />
+            </LinearLayout>
+            <ImageView  android:id="@+id/tv_my_center" android:src="@drawable/ic_my" android:tint="#FFFFFF" />  ← 个人中心
+        </LinearLayout>
+
+        <!-- 轮播图 (180dp高) -->
+        <ViewPager2 android:id="@+id/vp_banner" android:layout_height="180dp" />
+
+        <!-- 分类网格 (自定义MyGridView, 4列) -->
+        <com.example.newbee2.widget.MyGridView
+            android:id="@+id/gv_category" android:numColumns="4" />
+
+        <!-- 三个商品板块: 🆕新品上线 / 🔥热门商品 / ⭐最新推荐 -->
+        <TextView text="🆕 新品上线" />
+        <com.example.newbee2.widget.MyGridView android:id="@+id/gv_new" android:numColumns="2" />
+
+        <TextView text="🔥 热门商品" />
+        <com.example.newbee2.widget.MyGridView android:id="@+id/gv_hot" android:numColumns="2" />
+
+        <TextView text="⭐ 最新推荐" />
+        <com.example.newbee2.widget.MyGridView android:id="@+id/gv_latest" android:numColumns="2" />
+
+    </LinearLayout>
+</ScrollView>
+
+
+================================================================================
+模块八：分类页
+================================================================================
+
+Java文件: CategoryFragment.java
+--------------------------------------------------------------------------------
+package com.example.newbee2.fragment;
+
+public class CategoryFragment extends Fragment {
+    private RecyclerView rvCategory; // 左侧分类列表
+    private GridView gvGoods;        // 右侧商品网格(2列)
+    private static Long pendingCategoryId = null; // 首页传入的待选分类
+
+    public static void setPendingCategory(Long id) { pendingCategoryId = id; }
+
+    @Override
+    public void onViewCreated(View view, Bundle saved) {
+        // 左侧分类 RecyclerView
+        leftAdapter = new CategoryLeftAdapter(getActivity(), categoryList);
+        rvCategory.setAdapter(leftAdapter);
+
+        leftAdapter.setOnItemClickListener((category, pos) -> {
+            leftAdapter.setSelectedPosition(pos);  // 高亮选中
+            loadGoodsByCategory(category.getCategoryId(),
+                                category.getCategoryName());
+        });
+
+        // 右侧商品 GridView
+        goodsAdapter = new GoodsAdapter(getActivity(), goodsList);
+        gvGoods.setAdapter(goodsAdapter);
+
+        gvGoods.setOnItemClickListener((p, v, pos, id) -> {
+            goDetail(goodsList.get(pos).getGoodsId());
+        });
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // ★处理首页跳转过来的分类选中
+        if (categoryList.isEmpty()) {
+            loadCategories();
+        } else if (pendingCategoryId != null) {
+            int targetPos = 0;
+            for (int i = 0; i < categoryList.size(); i++) {
+                if (categoryList.get(i).getCategoryId().equals(pendingCategoryId)) {
+                    targetPos = i; break;
+                }
+            }
+            pendingCategoryId = null;
+            leftAdapter.setSelectedPosition(targetPos);
+            loadGoodsByCategory(categoryList.get(targetPos).getCategoryId(),
+                                categoryList.get(targetPos).getCategoryName());
+        }
+    }
+
+    // ★分类→关键词映射（后端goodsCategoryId参数不生效的变通方案）
+    private void loadGoodsByCategory(Long catId, String catName) {
+        String keyword = "a";
+        String firstWord = catName.split("\\s+")[0];
+        switch (firstWord) {
+            case "家电": keyword = "手机"; break;
+            case "女装": keyword = "T恤";  break;
+            case "家具": keyword = "座椅"; break;
+            case "运动": keyword = "耳机"; break;
+            case "游戏": keyword = "小米"; break;
+            case "美妆": keyword = "口红"; break;
+            case "工具": keyword = "橡皮"; break;
+            case "鞋靴": keyword = "苹果"; break;
+            case "玩具": keyword = "MAC";  break;
+        }
+        String url = "/search?pageNumber=1&keyword=" + keyword + "&orderBy=";
+        HttpUtil.get(url, callback -> {
+            SearchResult result = parse(data);
+            goodsList.clear();
+            goodsList.addAll(result.getList());
+            goodsAdapter.notifyDataSetChanged();
+        });
+    }
+}
+
+Layout文件: fragment_category.xml
+--------------------------------------------------------------------------------
+<LinearLayout android:orientation="vertical">
+    <!-- 标题栏 -->
+    <TextView android:text="分类" android:background="#00C9A7"
+        android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" />
+
+    <LinearLayout android:orientation="horizontal">
+        <!-- 左侧分类列表 (100dp宽, 灰底) -->
+        <RecyclerView android:id="@+id/rv_category"
+            android:layout_width="100dp" android:background="#F0F0F0" />
+        <!-- 右侧商品网格 (2列) -->
+        <GridView android:id="@+id/gv_goods"
+            android:layout_width="0dp" android:layout_weight="1"
+            android:numColumns="2" android:padding="10dp" />
+    </LinearLayout>
+</LinearLayout>
+
+
+================================================================================
+模块九：搜索页
+================================================================================
+
+Java文件: SearchActivity.java
+--------------------------------------------------------------------------------
+package com.example.newbee2;
+
+public class SearchActivity extends AppCompatActivity {
+    private EditText etSearch;               // 搜索输入框
+    private TextView tvSortDefault, tvSortNew, tvSortPrice; // 排序Tab
+    private RecyclerView rvSearch;           // 结果列表(2列)
+    private SearchGoodsAdapter adapter;
+    private String currentOrderBy = "";      // 当前排序方式
+    private int currentPage = 1;             // 当前页码
+
+    @Override protected void onCreate(Bundle saved) {
+        // 检查登录状态
+        if (token.isEmpty()) { startActivity(LoginActivity); finish(); return; }
+
+        // 搜索按钮点击
+        tvSearch.setOnClickListener(v -> { currentPage = 1; doSearch(); });
+
+        // 排序切换 (默认/新品/价格)
+        tvSortDefault.setOnClickListener(v -> {
+            currentOrderBy = ""; resetSortColor();
+            tvSortDefault.setTextColor(0xFF00C9A7); doSearch();
+        });
+        tvSortNew.setOnClickListener(v -> {
+            currentOrderBy = "new"; resetSortColor();
+            tvSortNew.setTextColor(0xFF00C9A7); doSearch();
+        });
+        tvSortPrice.setOnClickListener(v -> {
+            currentOrderBy = "price"; resetSortColor();
+            tvSortPrice.setTextColor(0xFF00C9A7); doSearch();
+        });
+
+        // ★上拉加载更多 (滚动到底部 → page+1 → doSearch)
+        rvSearch.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            public void onScrolled(RecyclerView rv, int dx, int dy) {
+                if (!rv.canScrollVertically(1)) {
+                    currentPage++;
+                    doSearch(); // 追加数据，不clear
+                }
+            }
+        });
+    }
+
+    private void doSearch() {
+        String keyword = etSearch.getText().toString().trim();
+        if (keyword.isEmpty()) keyword = "a";
+        String url = "/search?pageNumber=" + currentPage
+                   + "&keyword=" + keyword + "&orderBy=" + currentOrderBy;
+        HttpUtil.get(url, callback -> {
+            if (currentPage == 1) goodsList.clear();
+            goodsList.addAll(result.getData().getList());
+            adapter.notifyDataSetChanged();
+        });
+    }
+}
+
+
+================================================================================
+模块十：商品详情
+================================================================================
+
+Java文件: DetailActivity.java
+--------------------------------------------------------------------------------
+package com.example.newbee2;
+
+public class DetailActivity extends AppCompatActivity {
+    private ImageView ivGoods, ivCart;
+    private TextView tvName, tvIntro, tvPrice, tvDetail, tvCartBadge;
+    private Button btnAddCart, btnBuy;
+    private Goods currentGoods;
+
+    @Override protected void onCreate(Bundle saved) {
+        ...
+        // 购物车图标 → 跳转购物车Tab
+        ivCart.setOnClickListener(v -> {
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.putExtra("tab", 2);  // tab=2 → 购物车
+            startActivity(intent);
+        });
+
+        btnAddCart.setOnClickListener(v -> addToCart());  // 加入购物车
+        btnBuy.setOnClickListener(v -> buyNow());         // 立即购买
+
+        loadGoodsDetail(); // 加载商品详情
+        loadCartBadge();   // 加载购物车角标
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        loadCartBadge(); // 每次回到页面刷新角标
+    }
+
+    // 加入购物车: POST /shop-cart {goodsId, goodsCount=1}
+    private void addToCart() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("goodsCount", 1);
+        params.put("goodsId", goodsId);
+        HttpUtil.postJson("/shop-cart", params, callback -> {
+            Toast.makeText(..., "已加入购物车");
+            MainActivity.loadCartCountStatic(this); // 刷新底部导航角标
+            loadCartBadge(); // 刷新本页角标
+        });
+    }
+
+    // 立即购买: 先加购物车→跳转创建订单
+    private void buyNow() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("goodsCount", 1);
+        params.put("goodsId", goodsId);
+        HttpUtil.postJson("/shop-cart", params, callback -> {
+            startActivity(new Intent(this, CreateOrderActivity.class));
+        });
+    }
+
+    // 加载购物车角标: GET /shop-cart → 数量 → 显示/隐藏红点
+    private void loadCartBadge() {
+        HttpUtil.get("/shop-cart", callback -> {
+            int count = result.getData().size();
+            if (count > 0) {
+                tvCartBadge.setVisibility(View.VISIBLE);
+                tvCartBadge.setText(String.valueOf(count));
+            } else {
+                tvCartBadge.setVisibility(View.GONE);
+            }
+        });
+    }
+}
+
+Layout文件: activity_detail.xml (关键部分)
+--------------------------------------------------------------------------------
+<!-- 底部操作栏 -->
+<LinearLayout android:layout_height="55dp" android:background="#FFFFFF">
+    <!-- 购物车图标+红点角标 -->
+    <FrameLayout>
+        <ImageView android:id="@+id/iv_cart" android:src="@drawable/ic_cart"
+            android:layout_width="30dp" android:layout_height="30dp" />
+        <TextView android:id="@+id/tv_cart_badge"
+            android:layout_width="14dp" android:layout_height="14dp"
+            android:layout_gravity="top|end"
+            android:background="@drawable/bg_badge"  ← 红色椭圆
+            android:textColor="#FFFFFF" android:textSize="8sp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <Button android:id="@+id/btn_add_cart"  ← "加入购物车" 青绿色
+        android:background="#00C9A7" android:text="加入购物车" />
+
+    <Button android:id="@+id/btn_buy"       ← "立即购买" 红色
+        android:background="#FF0000" android:text="立即购买" />
+</LinearLayout>
+
+
+================================================================================
+模块十一：购物车
+================================================================================
+
+Java文件: CartFragment.java
+--------------------------------------------------------------------------------
+package com.example.newbee2.fragment;
+
+public class CartFragment extends Fragment {
+    private RecyclerView rvCart;
+    private CheckBox cbAll;             // 全选
+    private TextView tvTotal, tvEmpty;  // 合计/空状态
+    private Button btnSettle;           // 结算
+    private LinearLayout llBottom;      // 底部栏
+    private CartAdapter cartAdapter;
+
+    @Override
+    public void onViewCreated(View view, Bundle saved) {
+        ...
+        // 全选联动
+        cbAll.setOnCheckedChangeListener((v, isChecked) -> {
+            for (CartItem item : cartList) item.setSelected(isChecked);
+            cartAdapter.notifyDataSetChanged();
+            updateTotal();
+        });
+
+        // 结算 → 跳转创建订单
+        btnSettle.setOnClickListener(v -> {
+            if (getSelectedItems().isEmpty()) {
+                Toast.makeText(..., "请选择商品");
+                return;
+            }
+            startActivity(new Intent(..., CreateOrderActivity.class));
+        });
+    }
+
+    @Override public void onResume() {
+        super.onResume();
+        loadCartData();
+        MainActivity.loadCartCountStatic(getActivity()); // 刷新角标
+    }
+
+    // 加载购物车数据
+    private void loadCartData() {
+        HttpUtil.get("/shop-cart", callback -> {
+            if (cartList.isEmpty()) {
+                rvCart.setVisibility(GONE);
+                tvEmpty.setVisibility(VISIBLE);  // "购物车空空如也~"
+                llBottom.setVisibility(GONE);
+            } else {
+                rvCart.setVisibility(VISIBLE);
+                tvEmpty.setVisibility(GONE);
+                llBottom.setVisibility(VISIBLE);
+                updateTotal();
+            }
+        });
+    }
+
+    // 合计金额
+    private void updateTotal() {
+        int total = 0;
+        for (CartItem item : cartList) {
+            if (item.isSelected())
+                total += item.getSellingPrice() * item.getGoodsCount();
+        }
+        tvTotal.setText("合计: ¥" + total);
+    }
+
+    // ★全选联动（防递归）
+    private void checkAllSelect() {
+        boolean allSelected = true;
+        for (CartItem item : cartList)
+            if (!item.isSelected()) { allSelected = false; break; }
+        // 先取消监听 → 再设置状态 → 恢复监听
+        cbAll.setOnCheckedChangeListener(null);
+        cbAll.setChecked(allSelected);
+        cbAll.setOnCheckedChangeListener((v, c) -> { ... });
+    }
+
+    // 修改数量: POST /shop-cart/update
+    private void updateCartItem(CartItem item) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("cartItemId", item.getCartItemId());
+        params.put("goodsCount", item.getGoodsCount());
+        HttpUtil.postJson("/shop-cart/update", params, ...);
+    }
+
+    // 删除: DELETE /shop-cart/{id}
+    private void deleteCartItem(CartItem item) {
+        HttpUtil.delete("/shop-cart/" + item.getCartItemId(), callback -> {
+            cartList.remove(item);
+            cartAdapter.notifyDataSetChanged();
+            MainActivity.loadCartCountStatic(getActivity()); // 刷新角标
+        });
+    }
+}
+
+Layout文件: fragment_cart.xml
+--------------------------------------------------------------------------------
+<LinearLayout android:orientation="vertical">
+    <!-- 标题栏 -->
+    <TextView text="购物车" android:background="#00C9A7"
+        android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" />
+
+    <!-- 购物车列表 -->
+    <RecyclerView android:id="@+id/rv_cart" android:layout_weight="1" />
+
+    <!-- 空购提示 -->
+    <TextView android:id="@+id/tv_empty"
+        android:text="购物车空空如也~" android:textColor="#999999"
+        android:layout_weight="1" android:gravity="center" />
+
+    <!-- 底部结算栏 -->
+    <LinearLayout android:id="@+id/ll_bottom">
+        <CheckBox android:id="@+id/cb_all" android:text="全选" />
+        <TextView android:id="@+id/tv_total" android:textColor="#FF0000" />
+        <Button   android:id="@+id/btn_settle" android:text="结算"
+            android:background="#00C9A7" android:textColor="#FFFFFF" />
+    </LinearLayout>
+</LinearLayout>
+
+购物车Item布局: item_cart.xml
+--------------------------------------------------------------------------------
+<LinearLayout android:gravity="center_vertical" android:padding="10dp">
+    <CheckBox  android:id="@+id/cb_select" />
+    <ImageView android:id="@+id/iv_goods" 80x80dp />
+    <LinearLayout>   ← 商品信息
+        <TextView  android:id="@+id/tv_name"  maxLines="2" />
+        <TextView  android:id="@+id/tv_price" textColor="#FF0000" />
+        <LinearLayout>  ← 数量控制
+            <Button android:id="@+id/btn_minus" text="-" 30x30dp />
+            <TextView android:id="@+id/tv_count" text="1" />
+            <Button android:id="@+id/btn_plus"  text="+" 30x30dp />
+        </LinearLayout>
+    </LinearLayout>
+    <ImageView android:id="@+id/iv_delete" android:src="@android:drawable/ic_menu_delete" />
+</LinearLayout>
+
+购物车适配器: CartAdapter.java
+--------------------------------------------------------------------------------
+public class CartAdapter extends RecyclerView.Adapter<CartAdapter.ViewHolder> {
+    public interface OnCartChangeListener {
+        void onSelectChange();                          // 选中状态变化
+        void onCountChange(CartItem item, int newCount);// 数量变化
+        void onDelete(CartItem item);                   // 删除
+    }
+
+    public void onBindViewHolder(ViewHolder h, int pos) {
+        CartItem item = cartList.get(pos);
+        h.tvName.setText(item.getGoodsName());
+        h.tvPrice.setText("¥" + item.getSellingPrice());
+        h.tvCount.setText(String.valueOf(item.getGoodsCount()));
+        h.cbSelect.setChecked(item.isSelected());
+        ImageUtil.loadImage(h.ivGoods, item.getGoodsCoverImg()); // Glide加载
+
+        // 减号: count-1, 最少为1
+        h.btnMinus.setOnClickListener(v -> {
+            if (item.getGoodsCount() > 1) {
+                item.setGoodsCount(item.getGoodsCount() - 1);
+                listener.onCountChange(item, item.getGoodsCount());
+            }
+        });
+        // 加号: count+1
+        h.btnPlus.setOnClickListener(v -> { ... });
+        // 删除
+        h.ivDelete.setOnClickListener(v -> listener.onDelete(item));
+    }
+}
+
+
+================================================================================
+模块十二：创建订单
+================================================================================
+
+Java文件: CreateOrderActivity.java
+--------------------------------------------------------------------------------
+package com.example.newbee2;
+
+public class CreateOrderActivity extends AppCompatActivity {
+    private LinearLayout llAddress, llOrderNo;
+    private TextView tvAddressName, tvAddressDetail, tvTotal, tvOrderNo;
+    private RecyclerView rvOrder;
+    private Long selectedAddressId = null;
+    private int totalPrice = 0;
+
+    @Override protected void onCreate(Bundle saved) {
+        ...
+        // 选择地址: 跳转AddressListActivity(selectMode=true)
+        llAddress.setOnClickListener(v -> {
+            Intent intent = new Intent(this, AddressListActivity.class);
+            intent.putExtra("selectMode", true);
+            startActivityForResult(intent, 100);
+        });
+
+        // 提交订单
+        btnSubmit.setOnClickListener(v -> submitOrder());
+    }
+
+    // 接收地址选择结果
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        if (req == 100 && res == RESULT_OK && data != null) {
+            selectedAddressId = data.getLongExtra("addressId", 0);
+            tvAddressName.setText(data.getStringExtra("name"));
+            tvAddressDetail.setText(data.getStringExtra("detail"));
+        }
+    }
+
+    // 加载购物车数据(展示)
+    private void loadCartData() {
+        HttpUtil.get("/shop-cart", callback -> {
+            // CartItem → OrderItem 转换
+            for (CartItem ci : cartItems) {
+                OrderItem oi = new OrderItem();
+                oi.setGoodsName(ci.getGoodsName());
+                oi.setSellingPrice(ci.getSellingPrice());
+                oi.setGoodsCount(ci.getGoodsCount());
+                oi.setGoodsCoverImg(ci.getGoodsCoverImg());
+                orderItems.add(oi);
+                totalPrice += ci.getSellingPrice() * ci.getGoodsCount();
+            }
+            rvOrder.setAdapter(new OrderGoodsAdapter(this, orderItems));
+            tvTotal.setText("合计: ¥" + totalPrice);
+        });
+    }
+
+    // ★提交订单: POST /saveOrder → 显示订单号 → 弹出支付
+    private void submitOrder() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("addressId", selectedAddressId);
+        params.put("cartItemIds", cartItemIds); // 购物车商品ID列表
+
+        HttpUtil.postJson("/saveOrder", params, callback -> {
+            String orderNo = result.getData();     // 服务器返回订单号
+            llOrderNo.setVisibility(VISIBLE);     // 显示订单号
+            tvOrderNo.setText(orderNo);
+            showPayDialog(orderNo);               // 弹出支付选择框
+        });
+    }
+
+    // ★支付选择对话框 (微信/支付宝)
+    private void showPayDialog(String orderNo) {
+        View dialogView = inflate(R.layout.dialog_pay);
+        // 微信(绿色#09BB07) → payOrder(orderNo, 1)
+        // 支付宝(蓝色#1677FF) → payOrder(orderNo, 2)
+    }
+
+    // ★模拟支付: GET /paySuccess?orderNo=xxx&payType=x
+    private void payOrder(String orderNo, int payType) {
+        String url = "/paySuccess?orderNo=" + orderNo + "&payType=" + payType;
+        HttpUtil.get(url, callback -> {
+            if (result.isSuccess()) {
+                Toast("支付成功");
+                // 跳转待发货(status=2)
+                Intent intent = new Intent(this, OrderListActivity.class);
+                intent.putExtra("status", 2);
+                startActivity(intent); finish();
+            } else {
+                Toast("支付失败: " + result.getMessage());
+                // 跳转待支付(status=0)
+                intent.putExtra("status", 0); ...
+            }
+        });
+    }
+}
+
+Layout文件: activity_create_order.xml (关键部分)
+--------------------------------------------------------------------------------
+<!-- 地址选择 -->
+<LinearLayout android:id="@+id/ll_address" clickable>
+    <ImageView android:src="@android:drawable/ic_menu_mapmode" />
+    <TextView android:id="@+id/tv_address_name" text="请选择收货地址" />
+    <TextView android:id="@+id/tv_address_detail" />
+    <ImageView android:src="@android:drawable/ic_media_play" />  ← 右箭头
+</LinearLayout>
+
+<!-- 商品列表 -->
+<RecyclerView android:id="@+id/rv_order" />
+
+<!-- 订单号 (默认隐藏,下单成功后显示) -->
+<LinearLayout android:id="@+id/ll_order_no" android:visibility="gone">
+    <TextView text="订单号" />
+    <TextView android:id="@+id/tv_order_no" />
+</LinearLayout>
+
+<!-- 底部结算 -->
+<LinearLayout>
+    <TextView android:id="@+id/tv_total" textColor="#FF0000" />
+    <Button   android:id="@+id/btn_submit" text="提交订单" background="#00C9A7" />
+</LinearLayout>
+
+支付对话框: dialog_pay.xml
+--------------------------------------------------------------------------------
+<LinearLayout android:orientation="vertical" android:padding="20dp">
+    <TextView android:id="@+id/tv_wechat"   ← 微信支付
+        android:text="💚 微信支付" android:background="#09BB07"
+        android:textColor="#FFFFFF" 圆角45dp高 />
+    <TextView android:id="@+id/tv_alipay"   ← 支付宝
+        android:text="💙 支付宝"   android:background="#1677FF"
+        android:textColor="#FFFFFF" 圆角45dp高 />
+</LinearLayout>
+
+
+================================================================================
+模块十三：订单列表
+================================================================================
+
+Java文件: OrderListActivity.java
+--------------------------------------------------------------------------------
+package com.example.newbee2;
+
+public class OrderListActivity extends AppCompatActivity {
+    private TabLayout tabLayout;        // 6个Tab
+    private RecyclerView rvOrder;
+    private OrderAdapter adapter;
+    private int currentStatus = -1;     // -1=全部
+
+    @Override protected void onCreate(Bundle saved) {
+        currentStatus = getIntent().getIntExtra("status", -1);
+        // 6个Tab: 全部(-1) 待支付(0) 待确认(1) 待发货(2) 待收货(3) 已完成(4)
+        tabLayout.addTab(tabLayout.newTab().setText("全部"));
+        tabLayout.addTab(tabLayout.newTab().setText("待支付"));
+        ... // 待确认/待发货/待收货/已完成
+        tabLayout.addOnTabSelectedListener(... → currentStatus更新 → loadOrders());
+
+        adapter = new OrderAdapter(this, orderList);
+        adapter.setOnStatusChangeListener(() -> loadOrders()); // 支付/收货后刷新
+        rvOrder.setAdapter(adapter);
+    }
+
+    private void loadOrders() {
+        String url = "/order?pageNumber=1&status="
+                   + (currentStatus == -1 ? "" : currentStatus);
+        HttpUtil.get(url, callback -> {
+            orderList.clear();
+            orderList.addAll(result.getData().getList());
+            adapter.notifyDataSetChanged();
+        });
+    }
+}
+
+订单适配器: OrderAdapter.java (关键方法)
+--------------------------------------------------------------------------------
+public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.ViewHolder> {
+    public interface OnStatusChangeListener { void onStatusChanged(); }
+
+    public void onBindViewHolder(ViewHolder h, int pos) {
+        Order order = orderList.get(pos);
+        h.tvOrderNo.setText("订单号: " + order.getOrderNo());
+        h.tvStatus.setText(order.getStatusText());
+        // 嵌套RecyclerView: 订单内的商品列表
+        h.rvGoods.setAdapter(new OrderGoodsAdapter(context, order.getOrderItems()));
+
+        // ★根据状态显示不同按钮
+        switch (order.getOrderStatus()) {
+            case 0: // 待支付 → "立即支付"
+                h.tvAction.setVisibility(VISIBLE);
+                h.tvAction.setText("立即支付");
+                h.tvAction.setOnClickListener(v -> showPayDialog(order, h));
+                break;
+            case 3: // 待收货 → "确认收货"
+                h.tvAction.setVisibility(VISIBLE);
+                h.tvAction.setText("确认收货");
+                h.tvAction.setOnClickListener(v -> finishOrder(order, h));
+                break;
+            default: // 其他状态不显示按钮
+                h.tvAction.setVisibility(GONE);
+        }
+    }
+
+    // 支付: 同上 CreateOrderActivity.payOrder()
+    private void payOrder(Order order, int payType, ViewHolder h) {
+        GET "/paySuccess?orderNo=" + order.getOrderNo() + "&payType=" + payType
+        → order.setOrderStatus(2)  // 改为待发货
+        → h.tvAction.setVisibility(GONE)
+        → listener.onStatusChanged()
+    }
+
+    // 确认收货: PUT /order/{orderNo}/finish
+    private void finishOrder(Order order, ViewHolder h) {
+        PUT "/order/" + order.getOrderNo() + "/finish" (空body)
+        → order.setOrderStatus(4)  // 改为已完成
+        → h.tvAction.setVisibility(GONE)
+        → listener.onStatusChanged()
+    }
+}
+
+Layout文件: activity_order_list.xml
+--------------------------------------------------------------------------------
+<LinearLayout android:orientation="vertical">
+    <LinearLayout android:background="#FFFFFF">  ← 标题栏
+        <ImageView android:id="@+id/iv_back" android:src="@android:drawable/ic_menu_revert" />
+        <TextView  text="我的订单" android:textColor="#333333" android:textSize="16sp" />
+    </LinearLayout>
+    <TabLayout android:id="@+id/tab_layout" />  ← 6个Tab
+    <RecyclerView android:id="@+id/rv_order" /> ← 订单列表
+</LinearLayout>
+
+订单Item布局: item_order.xml
+--------------------------------------------------------------------------------
+<LinearLayout android:padding="15dp">
+    <TextView android:id="@+id/tv_order_no" />    ← 订单号
+    <RecyclerView android:id="@+id/rv_goods" />   ← 商品小列表(嵌套)
+    <LinearLayout>
+        <TextView android:id="@+id/tv_status" android:textColor="#00C9A7" />  ← 状态
+        <TextView android:id="@+id/tv_total" android:textColor="#FF0000" />   ← 合计
+    </LinearLayout>
+    <TextView android:id="@+id/tv_action" ← 操作按钮(青绿,默认隐藏)
+        android:background="#00C9A7" android:textColor="#FFFFFF" android:visibility="gone" />
+</LinearLayout>
+
+
+================================================================================
+模块十四：地址管理
+================================================================================
+
+Java文件: AddressListActivity.java
+--------------------------------------------------------------------------------
+package com.example.newbee2;
+
+public class AddressListActivity extends AppCompatActivity {
+    private RecyclerView rvAddress;
+    private AddressAdapter adapter;
+    private boolean selectMode = false; // 是否选择模式(创建订单时)
+
+    @Override protected void onCreate(Bundle saved) {
+        selectMode = getIntent().getBooleanExtra("selectMode", false);
+        adapter.setSelectMode(selectMode);
+
+        // 新增按钮 → AddressEditActivity (addressId=-1 表示新增)
+        tvAdd.setOnClickListener(v ->
+            startActivity(new Intent(this, AddressEditActivity.class)));
+
+        adapter.setOnAddressListener(new OnAddressListener() {
+            void onEdit(Address a) {
+                intent.putExtra("addressId", a.getAddressId());
+                startActivity(AddressEditActivity); // 编辑模式
+            }
+            void onDelete(Address a) { deleteAddress(a); }// DELETE /address/{id}
+            void onSelect(Address a) {    // 选择模式下点击→返回数据
+                intent.putExtra("addressId", a.getAddressId());
+                intent.putExtra("name", a.getUserName());
+                intent.putExtra("detail", a.getFullAddress());
+                setResult(RESULT_OK, intent); finish();
+            }
+        });
+    }
+
+    @Override protected void onResume() { loadAddresses(); }
+    private void loadAddresses() { GET "/address" → adapter.notifyDataSetChanged(); }
+}
+
+──────────────────────────────────────────────────────────────────────────────
+
+Java文件: AddressEditActivity.java
+--------------------------------------------------------------------------------
+package com.example.newbee2;
+
+public class AddressEditActivity extends AppCompatActivity {
+    private EditText etName, etPhone, etDetail;
+    private TextView tvRegion; // 省/市/区选择显示
+    private Long addressId = null; // null=新增, 非null=编辑
+    private int selectedProvince=0, selectedCity=0, selectedDistrict=0;
+
+    @Override protected void onCreate(Bundle saved) {
+        addressId = getIntent().getLongExtra("addressId", -1);
+        if (addressId != -1) {
+            loadAddress(); // GET /address/{id} → 回填表单
+        }
+        tvRegion.setOnClickListener(v -> showRegionPicker()); // ★省市区选择器
+        btnSave.setOnClickListener(v -> saveAddress());
+    }
+
+    // ★省市区三级联动选择器
+    private void showRegionPicker() {
+        View view = inflate(R.layout.dialog_region_picker);
+        // 三栏ListView: lvProvince, lvCity, lvDistrict
+        // 点击省份→更新城市列表; 点击城市→更新区县列表
+        AlertDialog.Builder(this)
+            .setTitle("选择地区").setView(view)
+            .setPositiveButton("确定", (d, w) -> confirmRegion())
+            .show();
+    }
+
+    private void confirmRegion() {
+        String p = RegionData.getProvinces().get(selectedProvince).name;
+        String c = RegionData.getCities(selectedProvince).get(selectedCity).name;
+        String d = RegionData.getDistricts(selectedProvince, selectedCity).get(selectedDistrict);
+        tvRegion.setText(p + " " + c + " " + d);
+    }
+
+    private void saveAddress() {
+        // 拆分省/市/区
+        String[] parts = tvRegion.getText().toString().trim().split("\\s+");
+        Map<String, Object> params = new HashMap<>();
+        params.put("userName", etName.getText());
+        params.put("userPhone", etPhone.getText());
+        params.put("provinceName", parts[0]); // 省
+        params.put("cityName", parts[1]);     // 市
+        params.put("regionName", parts[2]);   // 区
+        params.put("detailAddress", etDetail.getText());
+        params.put("defaultFlag", 1);         // ★数字类型
+
+        if (addressId != null) {
+            params.put("addressId", addressId);
+            HttpUtil.put("/address", params, ...);  // 编辑→PUT
+        } else {
+            HttpUtil.postJson("/address", params, ...); // 新增→POST
+        }
+    }
+}
+
+Layout文件: activity_address_list.xml (地址列表)
+--------------------------------------------------------------------------------
+<LinearLayout>
+    <LinearLayout android:background="#FFFFFF">  ← 标题栏
+        <ImageView android:id="@+id/iv_back" />
+        <TextView  text="地址管理" android:textStyle="bold" />
+        <TextView  android:id="@+id/tv_add" text="新增" ← 右上角按钮
+            android:textColor="#00C9A7" />
+    </LinearLayout>
+    <RecyclerView android:id="@+id/rv_address" />
+</LinearLayout>
+
+Layout文件: activity_address_edit.xml (地址编辑)
+--------------------------------------------------------------------------------
+<LinearLayout>
+    <LinearLayout android:background="#FFFFFF">  ← 标题栏
+        <ImageView android:id="@+id/iv_back" />
+        <TextView  android:id="@+id/tv_title" text="新增地址" />
+    </LinearLayout>
+    <EditText android:id="@+id/et_name"   hint="收货人姓名" />
+    <EditText android:id="@+id/et_phone"  hint="手机号码" inputType="phone" />
+    <TextView  android:id="@+id/tv_region" ← ★点击弹出省市区选择器
+        hint="请选择省/市/区"
+        android:drawableEnd="@drawable/ic_arrow_right" />
+    <EditText android:id="@+id/et_detail" hint="详细地址" />
+    <Button    android:id="@+id/btn_save"  text="保存"
+        android:background="@drawable/bg_button_orange" />
+</LinearLayout>
+
+省市区选择器布局: dialog_region_picker.xml
+--------------------------------------------------------------------------------
+<LinearLayout android:orientation="horizontal" android:layout_height="400dp">
+    <ListView android:id="@+id/lv_province"  ← 省份列
+        android:layout_weight="1" android:background="#F0F0F0" />
+    <ListView android:id="@+id/lv_city"      ← 城市列
+        android:layout_weight="1" android:background="#F8F8F8" />
+    <ListView android:id="@+id/lv_district"  ← 区县列
+        android:layout_weight="1" android:background="#FCFCFC" />
+</LinearLayout>
+
+
+================================================================================
+模块十五：我的
+================================================================================
+
+Java文件: MyFragment.java
+--------------------------------------------------------------------------------
+package com.example.newbee2.fragment;
+
+public class MyFragment extends Fragment {
+    private TextView tvNickname, tvLoginName, tvSign;
+    private TextView tvBadgeUnpay, tvBadgeDeliver, tvBadgeReceive;
+    // 订单入口 LinearLayout × 6
+
+    @Override
+    public void onViewCreated(View view, Bundle saved) {
+        // 订单点击 → OrderListActivity(status)
+        llOrderUnpay.setOnClickListener(v -> goOrderList(0));   // 待支付
+        llOrderDeliver.setOnClickListener(v -> goOrderList(2)); // 待发货
+        llOrderReceive.setOnClickListener(v -> goOrderList(3)); // 待收货
+
+        // 地址管理 → AddressListActivity
+        // 关于我们 → AboutActivity
+        // 退出登录 → 清除SharedPreferences
+    }
+
+    @Override public void onResume() {
+        loadUserInfo();    // GET /user/info
+        loadOrderCounts(); // GET /order?status=0/2/3 → 红点数量
+    }
+
+    // 加载订单红点数量
+    private void loadOrderCount(int status, TextView badge) {
+        GET "/order?pageNumber=1&status=" + status → totalCount
+        → if count>0: badge.setVisibility(VISIBLE) + badge.setText(count)
+        → else:       badge.setVisibility(GONE)
+    }
+}
+
+Layout文件: fragment_my.xml (关键部分)
+--------------------------------------------------------------------------------
+<!-- 用户信息卡片 (青绿色渐变背景, 180dp高) -->
+<LinearLayout android:background="@drawable/bg_gradient_teal" android:gravity="center_vertical">
+    <ImageView android:src="@android:drawable/sym_def_app_icon"
+        android:background="@drawable/bg_avatar_circle" 70x70dp />
+    <TextView android:id="@+id/tv_nickname" text="点击登录"
+        android:textColor="#FFFFFF" android:textStyle="bold" />
+    <TextView android:id="@+id/tv_login_name" />
+    <TextView android:id="@+id/tv_sign" text="这家伙很懒，没有写签名！" />
+</LinearLayout>
+
+<!-- 我的订单 (6个图标) -->
+<LinearLayout>
+    <TextView text="我的订单" textStyle="bold" />
+    <LinearLayout android:orientation="horizontal">
+        <!-- 每项: FrameLayout(36dp)包含图标(30dp居中)+红点(14dp top|end) + 文字 -->
+        <LinearLayout android:id="@+id/ll_order_all"     ← 全部订单  icon: ic_order_all
+            <TextView text="全部订单" textSize="11sp" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/ll_order_unpay"    ← 待支付   icon: ic_order_pay     + 红点tvBadgeUnpay
+        <LinearLayout android:id="@+id/ll_order_confirm"  ← 待确认   icon: ic_order_confirm
+        <LinearLayout android:id="@+id/ll_order_deliver"  ← 待发货   icon: ic_order_deliver + 红点tvBadgeDeliver
+        <LinearLayout android:id="@+id/ll_order_receive"  ← 待收货   icon: ic_order_receive + 红点tvBadgeReceive
+        <LinearLayout android:id="@+id/ll_order_done"     ← 已完成   icon: ic_order_done
+    </LinearLayout>
+</LinearLayout>
+
+<!-- 功能列表: 地址管理/关于我们/退出登录 -->
+<LinearLayout android:id="@+id/ll_address" ← 地址管理 icon: ic_address + 右箭头
+<LinearLayout android:id="@+id/ll_about"   ← 关于我们 icon: ic_about   + 右箭头
+<LinearLayout android:id="@+id/ll_logout"  ← 退出登录 icon: ic_logout  + 右箭头
+
+
+================================================================================
+模块十六：关于我们
+================================================================================
+
+Java文件: AboutActivity.java
+--------------------------------------------------------------------------------
+package com.example.newbee2;
+
+public class AboutActivity extends AppCompatActivity {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_about);
+        ImageView ivBack = findViewById(R.id.iv_back);
+        ivBack.setOnClickListener(v -> finish());
+    }
+}
+
+Layout: activity_about.xml → 展示App图标/名称/版本/介绍/技术栈/联系方式/版权
+
+
+================================================================================
+模块十七：自定义控件
+================================================================================
+
+文件: MyGridView.java
+--------------------------------------------------------------------------------
+package com.example.newbee2.widget;
+
+public class MyGridView extends GridView {
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        // 让GridView在ScrollView内部完全展开
+        int expandSpec = MeasureSpec.makeMeasureSpec(
+            Integer.MAX_VALUE >> 2, MeasureSpec.AT_MOST);
+        super.onMeasure(widthMeasureSpec, expandSpec);
+    }
+}
+
+
+================================================================================
+模块十八：AndroidManifest.xml
+================================================================================
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:usesCleartextTraffic="true"        ←允许HTTP明文流量
+        tools:targetApi="31">
+
+        <activity android:name=".SplashActivity"   ← 启动页(LAUNCHER)
+            android:exported="true"
+            android:theme="@style/Theme.NewBee2.Splash">   ← 全屏无标题栏
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".MainActivity"     ← 主框架
+            android:exported="true">
+            <meta-data android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <activity android:name=".LoginActivity" />
+        <activity android:name=".SearchActivity" android:exported="true" />
+        <activity android:name=".DetailActivity" />
+        <activity android:name=".AddressListActivity" />
+        <activity android:name=".AddressEditActivity" />
+        <activity android:name=".CreateOrderActivity" />
+        <activity android:name=".OrderListActivity" android:exported="true" />
+        <activity android:name=".AboutActivity" />
+    </application>
+</manifest>
+
+
+================================================================================
+                          文档结束 (2026年6月)
+================================================================================
