@@ -1,0 +1,789 @@
+================================================================================
+                   新蜂商城 购物车界面 完整实现详解
+================================================================================
+
+目录：
+  一、页面整体结构
+  二、布局文件逐层解析（fragment_cart.xml）
+  三、购物车 item 布局解析（item_cart.xml）
+  四、CartFragment.java 逐方法分析
+  五、CartAdapter.java 实现
+  六、全选联动逻辑（防递归）
+  七、数量修改与同步
+  八、删除商品
+  九、购物车角标系统
+  十、购物车在详情页的角标
+  十一、涉及的完整文件清单
+  十二、技术难点与解决方案
+
+
+================================================================================
+一、页面整体结构
+================================================================================
+
+1.1 购物车页面视觉布局：
+
+  ┌──────────────────────────────────────────┐
+  │              购物车                       │  标题栏（青绿色）
+  ├──────────────────────────────────────────┤
+  │                                          │
+  │  ┌──────────────────────────────────┐   │
+  │  │ ☑ [商品图] 商品名称            🗑 │   │  购物车列表
+  │  │           ¥199.00                  │   │  (RecyclerView)
+  │  │           [-]  2  [+]             │   │
+  │  ├──────────────────────────────────┤   │
+  │  │ ☑ [商品图] 商品名称            🗑 │   │
+  │  │           ¥299.00                  │   │
+  │  │           [-]  1  [+]             │   │
+  │  └──────────────────────────────────┘   │
+  │                                          │
+  │          购物车空空如也~                   │  空状态提示（隐藏）
+  │                                          │
+  ├──────────────────────────────────────────┤
+  │ ☑ 全选         合计: ¥697.00    [结算]   │  底部结算栏
+  └──────────────────────────────────────────┘
+
+1.2 页面状态切换
+
+  购物车有两种视觉状态：
+
+  状态A：购物车为空
+    显示 tv_empty（"购物车空空如也~"），隐藏 rvCart + llBottom
+
+  状态B：购物车有商品
+    显示 rvCart（商品列表）+ llBottom（结算栏），隐藏 tvEmpty
+
+  两种状态通过 View.setVisibility(VISIBLE/GONE) 切换，在 loadCartData()
+  中根据 cartList 是否为空来决策。
+
+
+================================================================================
+二、布局文件逐层解析（fragment_cart.xml）
+================================================================================
+
+文件总行数：73行
+根布局：LinearLayout（纵向）
+包含4个子区域：标题栏 → 列表/空状态 → 底部结算栏
+
+2.1 标题栏（第7-16行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <TextView                                                     │
+  │     android:layout_height="50dp"                            │
+  │     android:background="#00C9A7"      ← 青绿色背景           │
+  │     android:gravity="center"                                │
+  │     android:text="购物车"                                    │
+  │     android:textColor="#FFFFFF"       ← 白色文字             │
+  │     android:textSize="18sp"          ← 字号                  │
+  │     android:textStyle="bold" />      ← 粗体                 │
+  └─────────────────────────────────────────────────────────────┘
+
+  与分类页、我的页（如果有标题栏的话）风格统一：都是青绿色底+白色粗字。
+
+2.2 购物车列表 RecyclerView（第19-23行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <RecyclerView                                                │
+  │     android:id="@+id/rv_cart"                               │
+  │     android:layout_width="match_parent"                     │
+  │     android:layout_height="0dp"       ← 0dp配合weight实现    │
+  │     android:layout_weight="1" />      ← 占据剩余全部空间     │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么用 0dp + weight=1 而不是 match_parent？
+    底部还有结算栏（55dp）。如果 RecyclerView 用 match_parent，会把
+    底部栏挤出屏幕或覆盖。0dp+weight=1 表示"在分配完其他固定高度的
+    组件后，剩余空间全给 RecyclerView"。
+
+  为什么用 RecyclerView 而不是 ListView？
+    - RecyclerView 强制 ViewHolder 模式，性能更好
+    - 支持 LinearLayoutManager/GridLayoutManager/StaggeredGrid 等
+    - 官方推荐替代 ListView
+
+2.3 空状态提示（第26-35行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <TextView                                                     │
+  │     android:id="@+id/tv_empty"                              │
+  │     android:layout_height="0dp"                             │
+  │     android:layout_weight="1"    ← 与 rvCart 同级同权        │
+  │     android:gravity="center"     ← 文字居中                 │
+  │     android:text="购物车空空如也~"                            │
+  │     android:textColor="#999999"  ← 灰色（弱化视觉效果）       │
+  │     android:visibility="gone" /> ← 默认隐藏                  │
+  └─────────────────────────────────────────────────────────────┘
+
+  设计亮点：
+    - tv_empty 和 rvCart 是同级元素，各自的 layout_weight 都是 1
+    - 它们互相"替换"：有商品时显示 rvCart 隐藏 tvEmpty，反之亦然
+    - 两者不会同时可见，因为有相同的 weight 会争夺空间
+
+2.4 底部结算栏（第37-71行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <LinearLayout                                                │
+  │     android:id="@+id/ll_bottom"                             │
+  │     android:layout_height="55dp"       ← 固定高度            │
+  │     android:background="#FFFFFF"       ← 白底               │
+  │     android:gravity="center_vertical"  ← 子元素垂直居中      │
+  │     android:orientation="horizontal">                       │
+  │                                                              │
+  │     ├── CheckBox  cb_all                                    │
+  │     │   text="全选"                                          │
+  │     │   ← 控制所有 item 的选中状态                            │
+  │     │                                                       │
+  │     ├── TextView  tv_total                                  │
+  │     │   text="合计: ¥0.00"  textColor="#FF0000"  ← 红色     │
+  │     │   layout_weight="1"  gravity="center"                 │
+  │     │   ← 占据中间剩余空间，文字居中                          │
+  │     │                                                       │
+  │     └── Button  btn_settle                                  │
+  │         text="结算"  textColor="#FFFFFF"                     │
+  │         background="#00C9A7"  ← 青绿色按钮                   │
+  │         ← 点击跳转创建订单页                                  │
+  └─────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+三、购物车 item 布局解析（item_cart.xml）
+================================================================================
+
+文件总行数：84行
+这是一个购物车中单个商品条目的布局。
+
+3.1 整体结构（横向排列）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ [☑] [  商品图  ] 商品名称              [🗑]                 │
+  │      [80×80dp]  ¥299.00                                     │
+  │                 [-]  2  [+]                                  │
+  └─────────────────────────────────────────────────────────────┘
+
+  ┌─────┬────────────────────────────────┬──────┐
+  │ 选中框 │ 商品图片+信息+数量控制          │ 删除  │
+  │ CheckBox│ ImageView + 3个TextView +     │ ImageView│
+  │        │ 减号按钮+数量+加号按钮          │       │
+  └────────┴───────────────────────────────┴──────┘
+
+3.2 逐元素分析
+
+  ① CheckBox (cb_select) — 选中框
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <CheckBox android:id="@+id/cb_select" />                    │
+  └─────────────────────────────────────────────────────────────┘
+  用于用户勾选/取消商品。选中状态与 CartItem.selected 字段绑定。
+
+  ② ImageView (iv_goods) — 商品图片
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <ImageView 80×80dp  scaleType="centerCrop"                  │
+  │     android:layout_marginStart="10dp" />                   │
+  └─────────────────────────────────────────────────────────────┘
+  为什么是 80dp×80dp？
+    太小看不清商品，太大占用过多空间。80dp 是购物车商品图的合理尺寸。
+
+  ③ 商品信息区（横向 LinearLayout, weight=1）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <LinearLayout  width="0dp"  weight="1"  vertical>          │
+  │                                                              │
+  │   ├── tv_name  商品名  maxLines="2"  ellipsize="end"       │
+  │   │   ← 最多2行，超出省略号                                   │
+  │   │                                                          │
+  │   ├── tv_price 价格 ¥xxx  textColor="#FF0000"  红色          │
+  │   │                                                          │
+  │   └── 数量控制区（横向 LinearLayout）                          │
+  │       ├── btn_minus [－] 30dp×30dp    减号按钮               │
+  │       ├── tv_count 数量 40dp宽 居中                          │
+  │       └── btn_plus  [＋] 30dp×30dp    加号按钮               │
+  └─────────────────────────────────────────────────────────────┘
+
+  数量控制区使用 Button 而不是 ImageButton 的原因：
+    加减号是文字符号，Button 比 ImageButton 更适合纯文字按钮。
+
+  tv_count 宽度为什么是 40dp？
+    固定宽度确保数字居中对齐。如果宽度自适应（wrap_content），
+    "1" 和 "99" 的位置不同，视觉上不整齐。
+
+  ④ ImageView (iv_delete) — 删除按钮
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <ImageView 25×25dp  marginStart="10dp"                      │
+  │     src="@android:drawable/ic_menu_delete" />               │
+  └─────────────────────────────────────────────────────────────┘
+  使用 Android 系统自带的删除图标。
+
+
+================================================================================
+四、CartFragment.java 逐方法分析
+================================================================================
+
+4.1 成员变量（第38-44行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private RecyclerView rvCart;       // 购物车列表             │
+  │ private TextView tvEmpty, tvTotal; // 空状态 / 合计金额       │
+  │ private CheckBox cbAll;            // 全选框                 │
+  │ private Button btnSettle;          // 结算按钮               │
+  │ private LinearLayout llBottom;     // 底部结算栏（整个隐藏）   │
+  │ private CartAdapter cartAdapter;   // 适配器                  │
+  │ private List<CartItem> cartList = new ArrayList<>();        │
+  └─────────────────────────────────────────────────────────────┘
+
+4.2 onViewCreated（第54-110行）—— 初始化
+
+4.2.1 设置 RecyclerView 和 Adapter
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ cartAdapter = new CartAdapter(getActivity(), cartList);      │
+  │ rvCart.setLayoutManager(new LinearLayoutManager(             │
+  │         getActivity()));                                    │
+  │ rvCart.setAdapter(cartAdapter);                             │
+  └─────────────────────────────────────────────────────────────┘
+
+  LinearLayoutManager 默认竖向排列，每个 item 占满宽度。
+
+4.2.2 监听购物车变化事件（第68-84行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ cartAdapter.setOnCartChangeListener(                         │
+  │     new CartAdapter.OnCartChangeListener() {                 │
+  │                                                              │
+  │         // 事件1：用户勾选了某个商品                            │
+  │         void onSelectChange() {                              │
+  │             updateTotal();    // 重新计算合计金额              │
+  │             checkAllSelect(); // 检查是否需要更新全选框状态     │
+  │         }                                                    │
+  │                                                              │
+  │         // 事件2：用户点击了 + 或 - 按钮                        │
+  │         void onCountChange(CartItem item, int newCount) {    │
+  │             updateCartItem(item); // 同步到服务器              │
+  │         }                                                    │
+  │                                                              │
+  │         // 事件3：用户点击了删除                                │
+  │         void onDelete(CartItem item) {                       │
+  │             deleteCartItem(item); // 从列表移除+调接口         │
+  │         }                                                    │
+  │     });                                                      │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么 CartAdapter 通过回调通知 Fragment 而不是直接操作？
+    - 单一职责原则：Adapter 负责 UI 展示，Fragment 负责业务逻辑
+    - 网络请求（数量同步、删除）需要 HttpUtil，这是 Fragment 层的职责
+    - 合计金额的计算需要遍历整个 cartList，Fragment 有完整的 List 引用
+
+4.2.3 全选按钮事件（第87-93行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ cbAll.setOnCheckedChangeListener((buttonView, isChecked) -> {│
+  │     // ★ 遍历所有 CartItem，设置 selected 字段                │
+  │     for (CartItem item : cartList) {                         │
+  │         item.setSelected(isChecked);                         │
+  │     }                                                        │
+  │     cartAdapter.notifyDataSetChanged();  // 刷新所有item      │
+  │     updateTotal();                      // 更新合计金额       │
+  │ });                                                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  工作机制：用户点全选 → 遍历 cartList 全部设为 true/false →
+  通知 Adapter 刷新（每个 item 的 CheckBox 重新绑定）→ 更新合计。
+
+4.2.4 结算按钮事件（第96-104行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ btnSettle.setOnClickListener(v -> {                          │
+  │     List<CartItem> selected = getSelectedItems();            │
+  │     if (selected.isEmpty()) {                                │
+  │         Toast.makeText(..., "请选择商品", ...);              │
+  │         return;                                              │
+  │     }                                                        │
+  │     // 跳转创建订单页                                          │
+  │     startActivity(new Intent(getActivity(),                  │
+  │             CreateOrderActivity.class));                     │
+  │ });                                                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  注意：这里只检查"是否选中了至少一个商品"，不检查收货地址和支付方式。
+  地址选择在 CreateOrderActivity 中进行。
+
+  购物车不负责把选中数据"传给"创建订单页——CreateOrderActivity 自己会
+  重新请求 /shop-cart 接口获取最新购物车数据。
+
+4.2.5 默认状态设置（第106-109行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ rvCart.setVisibility(View.GONE);      // 初始隐藏列表        │
+  │ tvEmpty.setVisibility(View.VISIBLE);  // 初始显示空状态       │
+  │ llBottom.setVisibility(View.GONE);    // 初始隐藏底部栏       │
+  └─────────────────────────────────────────────────────────────┘
+
+  页面初始显示空购物车状态。等 onResume 中 loadCartData() 返回数据后，
+  如果有商品再切换到正常状态。
+
+4.3 onResume（第112-118行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ @Override public void onResume() {                           │
+  │     super.onResume();                                        │
+  │     loadCartData();  // 每次显示时重新加载                    │
+  │     MainActivity.loadCartCountStatic(getActivity());          │
+  │     //          ↑ 刷新底部导航栏购物车角标                     │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么每次 onResume 都重新加载？
+    用户可能在详情页添加了商品、在订单列表页支付了商品——购物车数据
+    随时可能变化。每次显示购物车 Tab 时刷新，确保数据最新。
+
+4.4 loadCartData（第120-169行）—— 核心数据加载
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private void loadCartData() {                                │
+  │     // 检查登录状态                                            │
+  │     String token = info.getString("token", "");             │
+  │     if (token.isEmpty()) {                                   │
+  │         // 未登录：显示空状态                                  │
+  │         rvCart.setVisibility(GONE);                          │
+  │         tvEmpty.setVisibility(VISIBLE);                      │
+  │         llBottom.setVisibility(GONE);                        │
+  │         return;                                              │
+  │     }                                                        │
+  │                                                              │
+  │     HttpUtil.get("/shop-cart", callback -> {                 │
+  │         // 解析 Result<List<CartItem>>                       │
+  │         cartList.clear();                                    │
+  │         cartList.addAll(result.getData());                   │
+  │                                                              │
+  │         // ★ 默认全部选中                                     │
+  │         for (CartItem item : cartList) {                     │
+  │             item.setSelected(true);                          │
+  │         }                                                    │
+  │                                                              │
+  │         // 切换 UI 状态                                       │
+  │         if (cartList.isEmpty()) {                            │
+  │             // 空购物车                                       │
+  │             rvCart.setVisibility(GONE);                      │
+  │             tvEmpty.setVisibility(VISIBLE);                  │
+  │             llBottom.setVisibility(GONE);                    │
+  │         } else {                                             │
+  │             // 有商品                                         │
+  │             rvCart.setVisibility(VISIBLE);                   │
+  │             tvEmpty.setVisibility(GONE);                     │
+  │             llBottom.setVisibility(VISIBLE);                 │
+  │             updateTotal();  // 计算合计                       │
+  │         }                                                    │
+  │     });                                                      │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么默认全部选中（setSelected(true)）？
+    用户体验考虑：进入购物车通常是为了结算，默认全选减少用户操作步骤。
+    如果用户不想买某个商品，取消勾选即可。
+
+4.5 updateTotal —— 计算总金额（第221-229行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private void updateTotal() {                                 │
+  │     int total = 0;                                           │
+  │     for (CartItem item : cartList) {                         │
+  │         if (item.isSelected()) {   // ★ 只算选中的           │
+  │             total += item.getSellingPrice()                  │
+  │                     * item.getGoodsCount();                 │
+  │         }                                                    │
+  │     }                                                        │
+  │     tvTotal.setText("合计: ¥" + total);                      │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  计算逻辑：遍历 cartList → 检查 isSelected → 单价×数量累加 → 显示。
+
+  这里用的是 int（整数），因为商品价格是整数（后端 sellingPrice 类型为 int）。
+  如果需要支持小数价格（如 ¥9.99），应改用 double 或 BigDecimal。
+
+4.6 checkAllSelect —— 全选联动（第231-248行）→ 详见第六章
+
+4.7 updateCartItem —— 数量同步（第171-185行）→ 详见第七章
+
+4.8 deleteCartItem —— 删除商品（第187-219行）→ 详见第八章
+
+4.9 getSelectedItems —— 获取选中商品列表（第250-258行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private List<CartItem> getSelectedItems() {                   │
+  │     List<CartItem> selected = new ArrayList<>();             │
+  │     for (CartItem item : cartList) {                         │
+  │         if (item.isSelected()) selected.add(item);           │
+  │     }                                                        │
+  │     return selected;                                         │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  结算时调用，过滤出选中的商品。如果返回空列表则提示"请选择商品"。
+
+
+================================================================================
+五、CartAdapter.java 实现
+================================================================================
+
+5.1 自定义接口 OnCartChangeListener（第27-31行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ public interface OnCartChangeListener {                      │
+  │     void onSelectChange();                                   │
+  │     void onCountChange(CartItem item, int newCount);         │
+  │     void onDelete(CartItem item);                            │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  三个回调方法对应三种用户操作：勾选、改数量、删除。
+  设计为接口的好处：CartFragment 实现这三个方法，解耦 Adapter 和 Fragment。
+
+5.2 onBindViewHolder —— 绑定数据（第55-88行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ public void onBindViewHolder(ViewHolder h, int pos) {        │
+  │     CartItem item = cartList.get(pos);                       │
+  │                                                              │
+  │     // ① 设置商品信息                                         │
+  │     h.tvName.setText(item.getGoodsName());                  │
+  │     h.tvPrice.setText("¥" + item.getSellingPrice());        │
+  │     h.tvCount.setText(String.valueOf(item.getGoodsCount()));│
+  │     h.cbSelect.setChecked(item.isSelected());                │
+  │                                                              │
+  │     // ② Glide 加载商品图片                                   │
+  │     ImageUtil.loadImage(h.ivGoods, item.getGoodsCoverImg()); │
+  │                                                              │
+  │     // ③ 勾选事件                                            │
+  │     h.cbSelect.setOnCheckedChangeListener((v, checked) -> {  │
+  │         item.setSelected(checked);  // 更新 Model             │
+  │         if (listener != null) listener.onSelectChange();     │
+  │     });                                                      │
+  │                                                              │
+  │     // ④ 减号按钮（最少为1）                                   │
+  │     h.btnMinus.setOnClickListener(v -> {                     │
+  │         int count = item.getGoodsCount();                    │
+  │         if (count > 1) {  // ★ 数量不能小于1                  │
+  │             item.setGoodsCount(count - 1);                   │
+  │             h.tvCount.setText(String.valueOf(count - 1));    │
+  │             listener.onCountChange(item, count - 1);         │
+  │         }                                                    │
+  │     });                                                      │
+  │                                                              │
+  │     // ⑤ 加号按钮                                            │
+  │     h.btnPlus.setOnClickListener(v -> {                      │
+  │         int count = item.getGoodsCount();                    │
+  │         item.setGoodsCount(count + 1);                       │
+  │         h.tvCount.setText(String.valueOf(count + 1));        │
+  │         listener.onCountChange(item, count + 1);             │
+  │     });                                                      │
+  │                                                              │
+  │     // ⑥ 删除按钮                                            │
+  │     h.ivDelete.setOnClickListener(v ->                       │
+  │         listener.onDelete(item));                            │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+六、全选联动逻辑（防递归）
+================================================================================
+
+6.1 问题描述
+
+  购物车有"全选 CheckBox"和每个 item 的"单选 CheckBox"。
+  它们之间的关系是双向的：
+
+  操作A：用户点全选 → 所有 item 的 CheckBox 需要更新
+  操作B：用户取消某个 item → 全选 CheckBox 需要取消
+  操作C：用户手动全部勾选 → 全选 CheckBox 需要自动勾选
+
+  这三个操作互相影响，如果处理不当会形成无限递归：
+    全选被点击 → setChecked(item) → item监听触发 → checkAllSelect
+    → setChecked(all) → 全选监听触发 → 全选被点击 → ...
+
+6.2 解决方案：先取消监听，再设值，再恢复
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private void checkAllSelect() {                              │
+  │     // 1. 判断是否全部选中                                    │
+  │     boolean allSelected = true;                              │
+  │     for (CartItem item : cartList) {                         │
+  │         if (!item.isSelected()) {                            │
+  │             allSelected = false;  // 有一个未选中→不全选       │
+  │             break;                                           │
+  │         }                                                    │
+  │     }                                                        │
+  │                                                              │
+  │     // 2. ★ 先取消监听（防止 setChecked 触发递归）             │
+  │     cbAll.setOnCheckedChangeListener(null);                  │
+  │                                                              │
+  │     // 3. ★ 设置全选框状态（此时不会触发任何回调）              │
+  │     cbAll.setChecked(allSelected);                           │
+  │                                                              │
+  │     // 4. ★ 恢复监听（重新绑定全选逻辑）                        │
+  │     cbAll.setOnCheckedChangeListener((buttonView, isChecked) -> {│
+  │         for (CartItem item : cartList)                       │
+  │             item.setSelected(isChecked);                     │
+  │         cartAdapter.notifyDataSetChanged();                   │
+  │         updateTotal();                                       │
+  │     });                                                      │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+6.3 执行时序图
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │ 用户取消单个商品 → onSelectChange()回调                        │
+  │   → updateTotal()  重新算合计                                 │
+  │   → checkAllSelect()                                         │
+  │     → 遍历cartList → 发现有不选中的 → allSelected=false       │
+  │     → cbAll.setOnCheckedChangeListener(null)   ← 先置空       │
+  │     → cbAll.setChecked(false)                  ← 安全设值     │
+  │     → cbAll.setOnCheckedChangeListener(新逻辑)  ← 恢复监听     │
+  │                                                              │
+  │ （全选框从"勾选"变成"不勾选"，用户能看到，且没有递归）          │
+  └──────────────────────────────────────────────────────────────┘
+
+  这个模式是 Android 处理 CheckBox 双向联动的经典做法。
+
+
+================================================================================
+七、数量修改与同步
+================================================================================
+
+7.1 用户操作流程
+
+  [+] 按钮点击 → Adapter 更新本地数据 → 回调 Fragment → Fragment 调接口
+
+7.2 Adapter 中的处理
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ holder.btnPlus.setOnClickListener(v -> {                     │
+  │     int count = item.getGoodsCount();                        │
+  │     item.setGoodsCount(count + 1);       // 乐观更新          │
+  │     holder.tvCount.setText(String.valueOf(count + 1));       │
+  │     listener.onCountChange(item, count + 1);                 │
+  │ });                                                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  减号按钮额外判断 count > 1（购物车商品数量不能小于1，否则应该删除）。
+
+7.3 Fragment 中的服务器同步
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private void updateCartItem(CartItem item) {                 │
+  │     Map<String, Object> params = new HashMap<>();            │
+  │     params.put("cartItemId", item.getCartItemId());          │
+  │     params.put("goodsCount", item.getGoodsCount());          │
+  │                                                              │
+  │     HttpUtil.postJson("/shop-cart/update", params,           │
+  │         callback -> {                                        │
+  │             updateTotal();  // 服务器确认后重新算合计          │
+  │         });                                                  │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  注意：updateTotal() 在成功回调中调用，确保服务器确认后才更新。
+  虽然是"乐观更新"（先改UI再同步服务器），但合计在服务端确认后重算。
+
+  为什么不用 PUT 而用 POST？
+    后端的 /shop-cart/update 接口是 POST 方法，客户端按照接口规范调用。
+
+
+================================================================================
+八、删除商品
+================================================================================
+
+8.1 用户操作流程
+
+  [🗑] 点击 → Adapter 回调 → Fragment 调删除接口 → 成功则移除item
+
+8.2 Fragment 中的删除逻辑
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private void deleteCartItem(CartItem item) {                 │
+  │     HttpUtil.delete("/shop-cart/" + item.getCartItemId(),    │
+  │         callback -> {                                        │
+  │                                                              │
+  │             // ★ 检查API返回是否成功                          │
+  │             Result result = parse(data);                     │
+  │             if (result.isSuccess()) {                        │
+  │                                                              │
+  │                 // ★ 从本地列表中移除                          │
+  │                 cartList.remove(item);                       │
+  │                 cartAdapter.notifyDataSetChanged();           │
+  │                                                              │
+  │                 // 重新计算合计                                │
+  │                 updateTotal();                               │
+  │                                                              │
+  │                 // ★ 删除后如果购物车为空，切回空状态          │
+  │                 if (cartList.isEmpty()) {                    │
+  │                     rvCart.setVisibility(GONE);              │
+  │                     tvEmpty.setVisibility(VISIBLE);          │
+  │                     llBottom.setVisibility(GONE);            │
+  │                 }                                            │
+  │                                                              │
+  │                 // ★ 刷新底部导航栏购物车角标                  │
+  │                 MainActivity.loadCartCountStatic(            │
+  │                         getActivity());                     │
+  │             }                                                │
+  │         });                                                  │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  关键设计：
+  - 先调接口删除，成功后再从列表移除（不是先移除再调接口）
+  - 如果服务器返回失败，item 保持原样不动
+  - 删除最后一个商品时自动切换到空状态
+
+
+================================================================================
+九、购物车角标系统
+================================================================================
+
+9.1 底部导航栏角标（MainActivity）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ // MainActivity.java                                        │
+  │ private void updateCartBadge(int count) {                    │
+  │     if (cartBadge == null) {                                 │
+  │         cartBadge = bottomNav.getOrCreateBadge(R.id.nav_cart);│
+  │     }                                                        │
+  │     if (count > 0) {                                        │
+  │         cartBadge.setVisible(true);                          │
+  │         cartBadge.setNumber(count);  // 数字角标              │
+  │     } else {                                                 │
+  │         cartBadge.setVisible(false);  // 购物车空→隐藏角标    │
+  │     }                                                        │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  使用 Material Design 的 BadgeDrawable：
+  - getOrCreateBadge(menuItemId)：获取或创建一个角标
+  - setNumber(n)：设置数字（自动适配40dp圆形背景+白色数字）
+  - setVisible(boolean)：控制显示/隐藏
+
+9.2 刷新时机
+
+  角标需要在以下时机刷新：
+
+  ┌──────────────────────┬──────────────────────────────────────┐
+  │ 触发时机               │ 调用方式                              │
+  ├──────────────────────┼──────────────────────────────────────┤
+  │ MainActivity.onResume│ this.loadCartCount()                  │
+  │ CartFragment.onResume│ MainActivity.loadCartCountStatic(ctx)│
+  │ DetailActivity 加购后  │ MainActivity.loadCartCountStatic(ctx)│
+  │ CartFragment 删除后    │ MainActivity.loadCartCountStatic(ctx)│
+  └──────────────────────┴──────────────────────────────────────┘
+
+9.3 loadCartCountStatic 的设计
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private static MainActivity instance;                        │
+  │                                                              │
+  │ public static void loadCartCountStatic(Context ctx) {        │
+  │     if (instance != null) {  // Activity 未被销毁            │
+  │         instance.loadCartCount();                            │
+  │     }                                                        │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么用静态实例？
+    DetailActivity 和 CartFragment 没有 MainActivity 的直接引用，
+    通过静态变量 instance 中转。在 MainActivity.onDestroy() 中将
+    instance 设为 null 防止内存泄漏。
+
+
+================================================================================
+十、购物车在详情页的角标
+================================================================================
+
+  详情页（DetailActivity）的购物车图标也带有红点角标，实现方式不同：
+
+  布局：FrameLayout 包裹 ImageView(购物车图标) + TextView(红点)
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <FrameLayout>                                                │
+  │     <ImageView 30dp×30dp  src="@drawable/ic_cart" />        │
+  │     <TextView  14dp×14dp                                    │
+  │         android:id="@+id/tv_cart_badge"                     │
+  │         android:layout_gravity="top|end"                    │
+  │         android:background="@drawable/bg_badge"  ← 红色椭圆  │
+  │         android:visibility="gone" />                        │
+  │ </FrameLayout>                                               │
+  └─────────────────────────────────────────────────────────────┘
+
+  与底部导航的 BadgeDrawable 是两种不同的角标实现方式。
+  详情页的角标通过 loadCartBadge() 方法刷新（GET /shop-cart → count）。
+
+
+================================================================================
+十一、涉及的完整文件清单
+================================================================================
+
+  Java 文件（2个）：
+    CartFragment.java       ← 购物车核心逻辑（260行）
+    CartAdapter.java        ← 购物车列表适配器（116行）
+
+  数据模型（1个）：
+    CartItem.java           ← 购物车商品模型（含 selected 本地字段）
+
+  XML 布局（2个）：
+    fragment_cart.xml       ← 购物车主布局（73行）
+    item_cart.xml           ← 购物车item布局（84行）
+
+  依赖的其他组件：
+    MainActivity            ← 角标刷新
+    DetailActivity          ← 添加商品到购物车 + 角标
+    CreateOrderActivity     ← 结算后跳转
+    HttpUtil                ← 网络请求
+    ImageUtil               ← 商品图片加载
+    bg_badge.xml            ← 红点背景
+
+  API 接口（4个）：
+    GET    /shop-cart         ← 获取购物车列表
+    POST   /shop-cart/update  ← 修改商品数量
+    DELETE /shop-cart/{id}    ← 删除商品
+    POST   /shop-cart         ← 添加商品（在 DetailActivity 中调用）
+
+
+================================================================================
+十二、技术难点与解决方案
+================================================================================
+
+12.1 全选与单选的双向联动
+
+  问题：全选 CheckBox 和 单选 CheckBox 互相设置状态会触发彼此的事件
+  监听，形成无限递归。
+
+  解决：checkAllSelect() 在设置全选状态前先置空监听器
+  （setOnCheckedChangeListener(null)），设值后再恢复。
+  这是 Android CheckBox 联动的经典解决方案。
+
+12.2 购物车空/非空状态的 UI 切换
+
+  问题：购物车有两种视觉状态（有商品 vs 空购物车），需要平滑切换。
+
+  解决：tvEmpty 和 rvCart 同级且 layout_weight 相同，
+  通过 setVisibility(VISIBLE/GONE) 互斥显示。
+  切换时机：loadCartData 回调中根据 cartList 是否为空判断。
+
+12.3 角标多页面同步刷新
+
+  问题：购物车数量可能在 DetailActivity（加购）、CartFragment（删除）
+  等多个页面发生变化，需要全局同步角标。
+
+  解决：MainActivity.loadCartCountStatic() 静态方法 + 单例模式。
+  每个可能导致角标变化的页面都调用此方法刷新。
+
+12.4 选中状态本地管理
+
+  问题：CartItem 的 selected 字段不在服务器存储，是前端 UI 状态。
+  如何确保选中状态在滚动、刷新后不丢失？
+
+  解决：selected 字段存储在 CartItem 的 Java 对象中（内存）。
+  只要 cartList 不清空重建，选中状态就一直保留。
+  onResume 重新加载时，默认全部 setSelected(true)，
+  所以刷新后选中状态会重置（这是一个设计选择，不是bug）。
+
+================================================================================
+                         文档编写日期：2026年6月
+================================================================================
