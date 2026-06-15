@@ -1,24 +1,25 @@
 ================================================================================
-            新蜂商城 网络连接与接口通信 实现详解
+       新蜂商城 网络连接与接口通信 实现详解（HttpURLConnection 版）
 ================================================================================
 
 目录：
   一、整体架构概览
-  二、HttpUtil 网络层封装（核心代码逐行解释）
+  二、HttpURLConnection 网络层封装（核心代码逐行解释）
   三、Token 认证机制
   四、API 通信完整流程（登录为例）
   五、5 种 HTTP 请求方式详解
   六、Gson JSON 解析机制
-  七、异步回调 → UI 线程切换原理
+  七、异步线程池 → UI 线程切换原理
   八、项目中所有 API 调用一览
   九、常见问题与注意事项
+  十、附：HttpURLConnection 与 OkHttp 对比
 
 
 ================================================================================
 一、整体架构概览
 ================================================================================
 
-  本项目的网络通信采用"OkHttp + Gson"组合，封装在 HttpUtil 工具类中。
+  本项目的网络通信采用"HttpURLConnection + Gson"组合，封装在 HttpUtil 中。
 
   架构层次：
   ┌─────────────────────────────────────────────────────────┐
@@ -28,7 +29,8 @@
   │    在回调中解析数据并更新 UI                              │
   ├─────────────────────────────────────────────────────────┤
   │  HttpUtil（网络层封装）                                   │
-  │    - OkHttpClient 管理连接池和超时                        │
+  │    - ExecutorService 线程池管理后台线程                   │
+  │    - HttpURLConnection 执行 HTTP 请求                    │
   │    - 自动注入 Token 请求头                               │
   │    - Gson 序列化请求体 / 反序列化响应体                   │
   │    - Handler 切回主线程回调                               │
@@ -43,253 +45,285 @@
 
 
 ================================================================================
-二、HttpUtil 网络层封装（核心代码逐行解释）
+二、HttpURLConnection 网络层封装（核心代码逐行解释）
 ================================================================================
 
   文件位置：app/src/main/java/com/example/newbee2/utils/HttpUtil.java
+  注意：该文件底部保留了完整 OkHttp 版本（注释），供对比参考。
 
 2.1 常量定义
 
   ┌─────────────────────────────────────────────────────────────┐
-  │ // 1. API 基础地址（所有接口共用这个前缀）                       │
+  │ // 1. API 基础地址（所有接口共用）                             │
   │ public static final String BASE_URL =                        │
   │     "http://172.30.130.131:28019/mallapi/api/v1";           │
   │                                                              │
-  │ // 2. JSON 媒体类型（告诉服务器发送的是 JSON 格式的数据）        │
-  │ private static final MediaType JSON =                        │
-  │     MediaType.get("application/json; charset=utf-8");       │
-  │                                                              │
-  │ // 3. Gson 实例（JSON ↔ Java 对象的转换器）                    │
+  │ // 2. Gson 实例（JSON ↔ Java 对象的转换器）                    │
   │ private static final Gson gson = new Gson();                 │
   │                                                              │
-  │ // 4. 主线程 Handler（用于将网络回调切回 UI 线程）              │
+  │ // 3. 主线程 Handler（将回调切回 UI 线程）                     │
   │ private static final Handler mainHandler =                   │
   │     new Handler(Looper.getMainLooper());                    │
   │                                                              │
-  │ // 5. Application Context（全局上下文，用于获取 SharedPrefs）   │
+  │ // 4. Application Context（读取 SharedPreferences 需要）      │
   │ private static Context appContext;                           │
+  │                                                              │
+  │ // 5. 线程池（关键！HttpURLConnection 是同步阻塞的）            │
+  │ private static final ExecutorService threadPool =            │
+  │     Executors.newFixedThreadPool(4);                        │
   └─────────────────────────────────────────────────────────────┘
 
-2.2 OkHttpClient 单例（连接池）
+  为什么需要线程池？
 
-  ┌─────────────────────────────────────────────────────────────┐
-  │ private static OkHttpClient client =                         │
-  │     new OkHttpClient.Builder()                              │
-  │         .connectTimeout(30, TimeUnit.SECONDS) // 连接超时    │
-  │         .readTimeout(30, TimeUnit.SECONDS)    // 读取超时    │
-  │         .writeTimeout(30, TimeUnit.SECONDS)   // 写入超时    │
-  │         .build();                                           │
-  └─────────────────────────────────────────────────────────────┘
+  HttpURLConnection 的请求方法是同步阻塞的——调用 conn.connect()
+  或 conn.getInputStream() 时，当前线程会被阻塞，直到服务器响应。
 
-  为什么使用单例 static OkHttpClient？
-  (1) OkHttpClient 内部维护了连接池（ConnectionPool），
-      复用 HTTP 连接可以显著提升性能
-  (2) 每个 OkHttpClient 实例有自己的线程池、缓存、拦截器，
-      创建多个实例浪费资源
-  (3) OkHttp 官方推荐全局使用一个 OkHttpClient 实例
+  如果在主线程调用，会导致 UI 卡死，触发 ANR（Application Not
+  Responding）。因此必须将请求放到后台线程执行。
 
-  三个超时参数的含义：
-  - connectTimeout：建立 TCP 连接的最大等待时间（30秒）
-  - readTimeout：从服务器读取数据的最大等待时间（30秒）
-  - writeTimeout：向服务器写入数据的最大等待时间（30秒）
-  如果网络环境较差可以适当增大，但本项目的后端在内网，30秒足够。
+  使用固定大小的线程池（4 个线程）：
+  - 最多同时执行 4 个网络请求
+  - 超出数量的请求排队等待
+  - 线程复用，避免频繁创建/销毁线程的开销
 
-2.3 初始化方法
+2.2 初始化方法
 
   ┌─────────────────────────────────────────────────────────────┐
   │ public static void init(Context context) {                   │
-  │     // 使用 ApplicationContext 避免内存泄漏                   │
   │     appContext = context.getApplicationContext();            │
   │ }                                                            │
   └─────────────────────────────────────────────────────────────┘
 
-  为什么用 getApplicationContext() 而不是直接存 Activity？
-  - ApplicationContext 的生命周期与 App 一致，不会因为 Activity
-    销毁而造成内存泄漏
-  - 在 SplashActivity.onCreate() 中调用 init(this) 初始化
+  在 SplashActivity.onCreate() 中调用，确保在其他代码访问前完成初始化。
 
-2.4 Token 获取方法
+2.3 Token 获取方法
 
   ┌─────────────────────────────────────────────────────────────┐
   │ private static String getToken() {                           │
-  │     if (appContext == null) return "";   // 未初始化时返回空  │
+  │     if (appContext == null) return "";                       │
   │     SharedPreferences info = appContext                      │
   │         .getSharedPreferences("info", MODE_PRIVATE);        │
-  │     return info.getString("token", "");// 读不到则返回空字符串 │
+  │     return info.getString("token", "");                     │
   │ }                                                            │
   └─────────────────────────────────────────────────────────────┘
 
-  关键点：
-  - 每次请求都会调用此方法，从 SharedPreferences 中读取最新 token
-  - 如果用户退出登录（token 被清除），后续请求自动不带 token
-  - 返回空字符串时，服务器会返回未认证错误，前端据此跳转登录页
+  每次请求时实时从 SharedPreferences 读取，确保拿到的是最新的 token。
 
-2.5 回调接口定义
+2.4 回调接口定义
 
   ┌─────────────────────────────────────────────────────────────┐
   │ public interface HttpCallback<T> {                           │
-  │     void onSuccess(T data);  // 请求成功时回调               │
-  │     void onError(String error); // 请求失败时回调             │
+  │     void onSuccess(T data);   // 请求成功                   │
+  │     void onError(String error); // 请求失败                  │
   │ }                                                            │
   └─────────────────────────────────────────────────────────────┘
 
-  为什么定义自己的回调接口？
-  - OkHttp 原生的 Callback 回调在子线程，不能直接操作 UI
-  - 封装后的回调通过 Handler 切回主线程，Activity/Fragment 可以直接
-    调用 Toast、setText 等 UI 操作
-  - 泛型 T 允许返回不同类型的响应数据（目前都用的 String）
+  回调已经在主线程执行（通过 Handler），调用方可以直接更新 UI。
+  项目中所有地方都使用 HttpCallback<String>（泛型参数固定为 String）。
 
-2.6 GET 请求实现（最常用的方法）
+2.5 GET 请求实现（逐行详解）
 
   ┌─────────────────────────────────────────────────────────────┐
   │ public static void get(String url,                           │
-  │                         HttpCallback<String> callback) {     │
+  │                        HttpCallback<String> callback) {      │
   │                                                              │
-  │     // 步骤1：构建 Request 对象                               │
-  │     Request request = new Request.Builder()                  │
-  │             .url(url)                     // 设置 URL        │
-  │             .addHeader("token", getToken())// ★自动注入 Token │
-  │             .build();                                       │
+  │     // ★ 第一步：提交到线程池，在后台线程执行                   │
+  │     threadPool.execute(() -> {                               │
+  │         HttpURLConnection conn = null;                       │
+  │         try {                                                │
+  │             // 第二步：创建 URL 对象                           │
+  │             URL urlObj = new URL(url);                       │
   │                                                              │
-  │     // 步骤2：发起异步请求                                     │
-  │     client.newCall(request).enqueue(new Callback() {         │
+  │             // 第三步：打开连接（注意：此时还未真正连接）         │
+  │             conn = (HttpURLConnection)                       │
+  │                     urlObj.openConnection();                 │
   │                                                              │
-  │         // 步骤3：请求失败处理（网络不通、超时等）               │
-  │         @Override                                            │
-  │         public void onFailure(Call call, IOException e) {    │
-  │             // ★通过 Handler 切回主线程                        │
-  │             mainHandler.post(() ->                           │
-  │                 callback.onError(e.getMessage())             │
-  │             );                                               │
-  │         }                                                    │
+  │             // 第四步：设置请求方法                             │
+  │             conn.setRequestMethod("GET");                    │
   │                                                              │
-  │         // 步骤4：请求成功处理（服务器返回了响应）               │
-  │         @Override                                            │
-  │         public void onResponse(Call call,                    │
-  │                                  Response response)          │
-  │                                  throws IOException {        │
-  │             // 读取响应体（注意：只能读一次）                    │
-  │             String body = response.body() != null            │
-  │                 ? response.body().string() : "";             │
-  │             // ★通过 Handler 切回主线程                        │
+  │             // 第五步：设置请求头（★ 自动注入 Token）           │
+  │             conn.setRequestProperty("token", getToken());    │
+  │             conn.setRequestProperty("Accept",                │
+  │                     "application/json");                     │
+  │                                                              │
+  │             // 第六步：设置超时（毫秒）                         │
+  │             conn.setConnectTimeout(30000); // 连接超时 30 秒  │
+  │             conn.setReadTimeout(30000);    // 读取超时 30 秒  │
+  │                                                              │
+  │             // 第七步：发起连接                                │
+  │             conn.connect();                                  │
+  │             //    ↑ 线程在此阻塞，直到收到服务器响应            │
+  │                                                              │
+  │             // 第八步：获取响应码并读取响应体                    │
+  │             int responseCode = conn.getResponseCode();       │
+  │             String body = readResponse(conn, responseCode);  │
+  │                                                              │
+  │             // 第九步：★ 通过 Handler 切回主线程                │
   │             mainHandler.post(() ->                           │
   │                 callback.onSuccess(body)                     │
   │             );                                               │
+  │                                                              │
+  │         } catch (IOException e) {                            │
+  │             // 网络异常（连接超时、DNS失败等）                  │
+  │             mainHandler.post(() ->                           │
+  │                 callback.onError(e.getMessage())             │
+  │             );                                               │
+  │         } finally {                                          │
+  │             // ★ 释放连接资源                                 │
+  │             if (conn != null) conn.disconnect();             │
   │         }                                                    │
   │     });                                                      │
   │ }                                                            │
   └─────────────────────────────────────────────────────────────┘
 
-  逐行详解：
+  HttpURLConnection 的关键方法说明：
 
-  (1) Request.Builder().url(url)
-      设置请求的 URL。例如：
-      "http://172.30.130.131:28019/mallapi/api/v1/shop-cart"
+  ┌──────────────────────┬──────────────────────────────────────┐
+  │ 方法                   │ 说明                                 │
+  ├──────────────────────┼──────────────────────────────────────┤
+  │ openConnection()      │ 创建连接对象（此时未建立TCP连接）       │
+  │ setRequestMethod()    │ 设置 HTTP 方法：GET/POST/PUT/DELETE  │
+  │ setRequestProperty()  │ 设置请求头（键值对）                   │
+  │ setConnectTimeout()   │ 建立 TCP 连接的超时时间（毫秒）        │
+  │ setReadTimeout()      │ 等待服务器响应的超时时间（毫秒）        │
+  │ setDoOutput(true)     │ ★ POST/PUT 必须设置，允许写入请求体    │
+  │ connect()             │ 真正发起连接（GET/DELETE）             │
+  │ getResponseCode()     │ 获取 HTTP 状态码（200/404/500等）      │
+  │ getInputStream()      │ 获取响应体输入流（成功时）              │
+  │ getErrorStream()      │ 获取错误响应体输入流（4xx/5xx时）       │
+  │ disconnect()          │ 释放连接资源                           │
+  └──────────────────────┴──────────────────────────────────────┘
 
-  (2) .addHeader("token", getToken())
-      添加 HTTP 请求头。每次请求自动从 SharedPreferences 读取 token
-      并放入 Header。后端通过这个 Header 识别用户身份。
+2.6 POST JSON 请求实现
 
-  (3) client.newCall(request).enqueue(new Callback() { ... })
-      enqueue 表示异步执行——网络请求在后台线程运行，不阻塞 UI 线程。
-      与之相对的是 execute()（同步执行，会阻塞线程，Android 上禁止使用）。
+  ┌─────────────────────────────────────────────────────────────┐
+  │ public static void postJson(String url, Object obj,          │
+  │                              HttpCallback<String> callback) {│
+  │     threadPool.execute(() -> {                               │
+  │         HttpURLConnection conn = null;                       │
+  │         try {                                                │
+  │             // 1. Java 对象 → JSON 字符串                     │
+  │             String json = gson.toJson(obj);                  │
+  │             // {"goodsCount":1,"goodsId":10001}             │
+  │                                                              │
+  │             URL urlObj = new URL(url);                       │
+  │             conn = (HttpURLConnection)                       │
+  │                     urlObj.openConnection();                 │
+  │                                                              │
+  │             conn.setRequestMethod("POST");                   │
+  │                                                              │
+  │             // 2. 设置 JSON 内容类型                          │
+  │             conn.setRequestProperty("Content-Type",          │
+  │                     "application/json; charset=utf-8");      │
+  │             conn.setRequestProperty("token", getToken());    │
+  │                                                              │
+  │             conn.setConnectTimeout(30000);                   │
+  │             conn.setReadTimeout(30000);                      │
+  │                                                              │
+  │             // 3. ★ 必须设置为 true！否则无法写入请求体         │
+  │             conn.setDoOutput(true);                          │
+  │                                                              │
+  │             // 4. 通过 OutputStream 写入 JSON                 │
+  │             OutputStream os = conn.getOutputStream();        │
+  │             os.write(json.getBytes("UTF-8"));                │
+  │             os.flush();  // 确保数据完全发送                   │
+  │             os.close();                                      │
+  │                                                              │
+  │             // 5. 读取响应                                    │
+  │             int responseCode = conn.getResponseCode();       │
+  │             String resBody = readResponse(conn,              │
+  │                     responseCode);                           │
+  │                                                              │
+  │             mainHandler.post(() ->                           │
+  │                 callback.onSuccess(resBody)                  │
+  │             );                                               │
+  │                                                              │
+  │         } catch (IOException e) { ... }                      │
+  │         finally { if (conn != null) conn.disconnect(); }    │
+  │     });                                                      │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
 
-  (4) onFailure(Call call, IOException e)
-      当网络请求本身失败时触发：
-      - 无法连接到服务器（DNS 解析失败、IP 不可达）
-      - 连接超时
-      - SSL 证书错误
-      这个回调在 OkHttp 的线程池中执行，不能直接操作 UI。
+  POST JSON 与 GET 的核心区别：
+  - GET：不需要 setDoOutput(true)，不需要 OutputStream
+  - POST/PUT：必须 setDoOutput(true)，必须写 OutputStream
 
-  (5) onResponse(Call call, Response response)
-      当收到服务器响应时触发（即使 HTTP 状态码是 404/500 也算成功响应）。
-      注意：这里只读了 response.body().string()，不需要额外检查
-      isSuccessful()，因为后端用 resultCode 字段表示业务成功与否。
+2.7 响应读取方法
 
-  (6) mainHandler.post(() -> callback.onSuccess(body))
-      ★ 最关键的一行。Handler(Looper.getMainLooper()) 将 Runnable
-      post 到主线程的消息队列中执行。这样 Activity/Fragment 在处理
-      onSuccess 回调时可以直接操作 UI。
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private static String readResponse(HttpURLConnection conn,   │
+  │         int responseCode) throws IOException {              │
+  │                                                              │
+  │     InputStream inputStream;                                 │
+  │     if (responseCode >= 200 && responseCode < 300) {         │
+  │         // 2xx 成功 → 从正常流读取                            │
+  │         inputStream = conn.getInputStream();                 │
+  │     } else {                                                 │
+  │         // 4xx/5xx 错误 → 从错误流读取（后端可能返回错误JSON） │
+  │         inputStream = conn.getErrorStream();                 │
+  │     }                                                        │
+  │                                                              │
+  │     if (inputStream == null) return "";                      │
+  │                                                              │
+  │     // 用 BufferedReader 逐行读取                             │
+  │     BufferedReader reader = new BufferedReader(              │
+  │         new InputStreamReader(inputStream, "UTF-8"));       │
+  │     StringBuilder sb = new StringBuilder();                  │
+  │     String line;                                             │
+  │     while ((line = reader.readLine()) != null) {             │
+  │         sb.append(line);                                     │
+  │     }                                                        │
+  │     reader.close();                                          │
+  │     return sb.toString();                                    │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
 
-  线程切换示意：
-  ┌──────────────────────────────────────────────┐
-  │  网络请求（OkHttp 线程池，后台线程）               │
-  │      ↓                                        │
-  │  onResponse() 收到数据                          │
-  │      ↓                                        │
-  │  mainHandler.post(Runnable)                    │
-  │      ↓                                        │
-  │  Looper.getMainLooper() 主线程消息队列          │
-  │      ↓                                        │
-  │  callback.onSuccess(body)  ← 主线程执行         │
-  │      ↓                                        │
-  │  Activity.runOnUiThread / Toast / setText     │
-  └──────────────────────────────────────────────┘
+  为什么要区分正常流和错误流？
+  - getInputStream() 只在 2xx 时有效
+  - 4xx/5xx 时调用 getInputStream() 会抛出 IOException
+  - getErrorStream() 才能在 4xx/5xx 时拿到服务器返回的错误 JSON
+  - 后端统一用 resultCode 字段表示业务成功/失败（不靠 HTTP 状态码）
 
 
 ================================================================================
 三、Token 认证机制
 ================================================================================
 
-3.1 什么是 Token 认证？
+3.1 为什么需要 Token？
 
-  HTTP 是无状态协议——服务器默认不知道两次请求来自同一个用户。
-  Token 认证的流程：
-  (1) 用户登录 → 服务器验证密码 → 生成一个 Token（随机字符串）
-      → 返回给客户端
-  (2) 客户端保存 Token 到本地存储
-  (3) 后续每次请求都在 Header 中携带 Token
-  (4) 服务器根据 Token 识别用户身份，返回对应用户的数据
+  HTTP 是无状态协议，每次请求互相独立。Token 让服务器识别"这个请求
+  来自哪个用户"，从而返回该用户的购物车、订单、地址等个性化数据。
 
-  为什么不直接把用户名密码存在客户端？
-  - 密码是敏感信息，频繁传输增加泄露风险
-  - Token 可以设置过期时间，密码不能
-  - Token 可以随时撤销（服务端删除），密码不能
+  Token 认证流程：
+  (1) 用户登录 → 服务器验证密码 → 生成 Token → 返回给客户端
+  (2) 客户端保存 Token 到 SharedPreferences
+  (3) 后续每次请求在 Header 中携带 Token
+  (4) 服务器根据 Token 识别用户身份
 
-3.2 本项目的 Token 实现
+3.2 本项目的实现
 
-  (1) 登录时保存 Token：
+  登录保存：
   ┌─────────────────────────────────────────────────────────────┐
-  │ // LoginActivity.java doLogin() 方法                         │
-  │ // 登录成功后：token = 服务器返回的 data 字段                  │
   │ SharedPreferences info =                                     │
   │     getSharedPreferences("info", MODE_PRIVATE);             │
-  │ info.edit()                                                  │
-  │     .putString("token", result.getData())  // 写入 token     │
-  │     .apply();                     // 异步提交（不阻塞 UI）     │
+  │ info.edit().putString("token", result.getData()).apply();   │
   └─────────────────────────────────────────────────────────────┘
 
-  (2) 每次请求自动携带 Token：
+  每次请求携带：
   ┌─────────────────────────────────────────────────────────────┐
-  │ // HttpUtil.java get() 方法                                  │
-  │ Request request = new Request.Builder()                      │
-  │     .addHeader("token", getToken())  // ← 自动从 SP 读取     │
-  │     .build();                                               │
+  │ conn.setRequestProperty("token", getToken());               │
   └─────────────────────────────────────────────────────────────┘
 
-  (3) 退出登录时清除 Token：
+  退出清除：
   ┌─────────────────────────────────────────────────────────────┐
-  │ // MyFragment.java 退出登录逻辑                               │
-  │ SharedPreferences info =                                     │
-  │     getActivity().getSharedPreferences("info", 0);          │
-  │ info.edit().clear().apply();  // 清空所有数据（包括 token）    │
+  │ info.edit().clear().apply();                                 │
   └─────────────────────────────────────────────────────────────┘
 
-  (4) 未登录时的处理：
+  登录检查：
   ┌─────────────────────────────────────────────────────────────┐
-  │ // 各 Activity/Fragment 中检查登录状态的方法                    │
-  │ private boolean isLogin() {                                  │
-  │     SharedPreferences info =                                 │
-  │         getActivity().getSharedPreferences("info", 0);      │
-  │     String token = info.getString("token", "");             │
-  │     return !token.isEmpty();  // token 非空 = 已登录          │
-  │ }                                                            │
-  │                                                              │
-  │ // 使用场景                                                   │
-  │ if (!isLogin()) {                                            │
-  │     startActivity(new Intent(..., LoginActivity.class));     │
-  │     return;                                                  │
-  │ }                                                            │
+  │ String token = getSharedPreferences("info", 0)              │
+  │     .getString("token", "");                                │
+  │ boolean isLogin = !token.isEmpty();                         │
   └─────────────────────────────────────────────────────────────┘
 
 
@@ -297,221 +331,116 @@
 四、API 通信完整流程（以登录为例）
 ================================================================================
 
-  下面以登录为完整案例，追踪一次 API 调用的全过程。
+  完整链路：
 
-4.1 用户操作：输入用户名 + 密码，点击"登录"
-
-4.2 客户端代码（LoginActivity.java）：
-
-  ┌─────────────────────────────────────────────────────────────┐
-  │ private void doLogin() {                                     │
-  │     // ① 加密密码                                            │
-  │     String md5Password = MD5Util.md5(password);              │
-  │                                                              │
-  │     // ② 构建请求参数                                        │
-  │     Map<String, String> params = new HashMap<>();            │
-  │     params.put("loginName", username);   // "13900139000"   │
-  │     params.put("passwordMd5", md5Password);// MD5 后的密码    │
-  │                                                              │
-  │     // ③ 发送 POST JSON 请求                                  │
-  │     HttpUtil.postJson(                                       │
-  │         HttpUtil.BASE_URL + "/user/login",  // 完整 URL      │
-  │         params,                             // 请求体        │
-  │         new HttpUtil.HttpCallback<String>() {               │
-  │             public void onSuccess(String data) {             │
-  │                 // ④ 解析 JSON                               │
-  │                 Result<String> result = parse(data);        │
-  │                 // ⑤ 保存 token                              │
-  │                 saveToken(result.getData());                │
-  │                 // ⑥ 跳转或关闭                               │
-  │                 finish();                                   │
-  │             }                                                │
-  │             public void onError(String error) {              │
-  │                 Toast.makeText(..., "网络错误", ...);        │
-  │             }                                                │
-  │         });                                                  │
-  │ }                                                            │
-  └─────────────────────────────────────────────────────────────┘
-
-4.3 HttpUtil 内部处理：
-
-  ┌─────────────────────────────────────────────────────────────┐
-  │ public static void postJson(String url, Object obj,          │
-  │         HttpCallback<String> callback) {                    │
-  │                                                              │
-  │     // Step A: Java 对象 → JSON 字符串                        │
-  │     // {"loginName":"13900139000","passwordMd5":"25d55..."} │
-  │     String json = gson.toJson(obj);                         │
-  │                                                              │
-  │     // Step B: JSON 字符串 → RequestBody                     │
-  │     RequestBody body = RequestBody.create(json, JSON);       │
-  │                                                              │
-  │     // Step C: 构建 HTTP 请求                                 │
-  │     // POST http://172.30.130.131:28019/.../user/login      │
-  │     // Content-Type: application/json; charset=utf-8         │
-  │     // Body: {"loginName":"13900139000","passwordMd5":"..."}│
-  │     Request request = new Request.Builder()                  │
-  │             .url(url)                                       │
-  │             .addHeader("token", getToken())                 │
-  │             .post(body)          // ← POST 方法 + 请求体     │
-  │             .build();                                       │
-  │                                                              │
-  │     // Step D: 异步发送请求                                    │
-  │     client.newCall(request).enqueue(new Callback() {         │
-  │         public void onResponse(...) {                        │
-  │             // Step E: 收到响应，切回主线程                     │
-  │             String resBody = response.body().string();      │
-  │             mainHandler.post(() ->                            │
-  │                 callback.onSuccess(resBody)                  │
-  │             );                                               │
-  │         }                                                    │
-  │     });                                                      │
-  │ }                                                            │
-  └─────────────────────────────────────────────────────────────┘
-
-4.4 网络传输（HTTP 协议层）：
-
-  客户端发送：
-  ┌─────────────────────────────────────────────────────────────┐
-  │ POST /mallapi/api/v1/user/login HTTP/1.1                    │
-  │ Host: 172.30.130.131:28019                                  │
-  │ Content-Type: application/json; charset=utf-8               │
-  │ Content-Length: 71                                           │
-  │                                                              │
-  │ {"loginName":"13900139000","passwordMd5":"25d55ad283aa..."} │
-  └─────────────────────────────────────────────────────────────┘
-
-  服务器返回（成功）：
-  ┌─────────────────────────────────────────────────────────────┐
-  │ HTTP/1.1 200 OK                                              │
-  │ Content-Type: application/json                              │
-  │                                                              │
-  │ {                                                            │
-  │   "resultCode": 200,                                        │
-  │   "message": "success",                                      │
-  │   "data": "a1b2c3d4e5f6..." ← 这就是 Token                  │
-  │ }                                                            │
-  └─────────────────────────────────────────────────────────────┘
-
-4.5 客户端处理响应：
-
-  ┌─────────────────────────────────────────────────────────────┐
-  │ callback.onSuccess 收到 JSON 字符串                           │
-  │      ↓                                                      │
-  │ Type type = new TypeToken<Result<String>>(){}.getType();    │
-  │ Result<String> result = gson.fromJson(data, type);          │
-  │ //            ↓                                              │
-  │ // result.resultCode = 200                                  │
-  │ // result.message = "success"                                │
-  │ // result.data = "a1b2c3d4e5f6..."  ← Token                 │
-  │      ↓                                                      │
-  │ if (result.isSuccess()) {                                   │
-  │     // 保存 Token 到 SharedPreferences                       │
-  │     // 关闭登录页，回到上一页                                  │
-  │ } else {                                                    │
-  │     // 显示错误信息（result.getMessage()）                    │
-  │ }                                                            │
-  └─────────────────────────────────────────────────────────────┘
+  (1) 用户输入账号密码，点击"登录"
+      │
+  (2) LoginActivity.doLogin()
+      │  └─ 密码 MD5 加密
+      │  └─ 构建 params = {loginName, passwordMd5}
+      │  └─ 调用 HttpUtil.postJson(BASE_URL + "/user/login", params, callback)
+      │
+  (3) HttpUtil.postJson()
+      │  └─ gson.toJson(params) → '{"loginName":"13900139000","passwordMd5":"25d5..."}'
+      │  └─ threadPool.execute() → 后台线程
+      │     └─ new URL(url).openConnection() → HttpURLConnection 对象
+      │     └─ conn.setRequestMethod("POST")
+      │     └─ conn.setRequestProperty("Content-Type", "application/json")
+      │     └─ conn.setRequestProperty("token", "")        ← 登录时 token 为空
+      │     └─ conn.setDoOutput(true)
+      │     └─ OutputStream.write(json.getBytes("UTF-8"))  ← 写入 JSON 请求体
+      │     └─ conn.getResponseCode()  ← 线程阻塞等待响应
+      │     └─ readResponse(conn, 200) ← 读取 JSON 响应体
+      │     └─ mainHandler.post(() → callback.onSuccess(body)) ← 切回主线程
+      │
+  (4) 网络传输（HTTP 协议层）
+      │  客户端发送：
+      │  ┌──────────────────────────────────────────────────┐
+      │  │ POST /mallapi/api/v1/user/login HTTP/1.1          │
+      │  │ Host: 172.30.130.131:28019                        │
+      │  │ Content-Type: application/json; charset=utf-8     │
+      │  │ Content-Length: 71                                │
+      │  │                                                   │
+      │  │ {"loginName":"13900139000","passwordMd5":"25d..."}│
+      │  └──────────────────────────────────────────────────┘
+      │
+      │  服务器返回：
+      │  ┌──────────────────────────────────────────────────┐
+      │  │ HTTP/1.1 200 OK                                   │
+      │  │ Content-Type: application/json                    │
+      │  │                                                   │
+      │  │ {"resultCode":200,"message":"success",            │
+      │  │  "data":"a1b2c3d4e5f6..."}  ← Token              │
+      │  └──────────────────────────────────────────────────┘
+      │
+  (5) callback.onSuccess 回调（已在主线程）
+      │  └─ Gson.fromJson(data, Result<String>.class)
+      │  └─ result.getData() → "a1b2c3d4e5f6..."
+      │  └─ SharedPreferences.edit().putString("token", token).apply()
+      │  └─ finish() ← 关闭登录页
 
 
 ================================================================================
 五、5 种 HTTP 请求方式详解
 ================================================================================
 
-5.1 GET 请求 —— 查询数据
+  项目中共实现了 5 种 HTTP 方法，本质区别在于请求方法和请求体：
+
+  ┌────────┬──────────────┬──────────────────┬─────────────┐
+  │ 方法    │ setRequest    │ setDoOutput       │ 请求体       │
+  │         │ Method()      │                   │              │
+  ├────────┼──────────────┼──────────────────┼─────────────┤
+  │ GET     │ "GET"         │ false（默认）      │ 无           │
+  │ POST    │ "POST"        │ true              │ JSON/表单    │
+  │ PUT     │ "PUT"         │ true              │ JSON         │
+  │ DELETE  │ "DELETE"      │ false（默认）      │ 无           │
+  └────────┴──────────────┴──────────────────┴─────────────┘
+
+5.1 GET —— 查询数据
 
   用途：获取商品列表、购物车、订单、地址等
+  特点：参数直接拼接在 URL 中，不需要请求体
 
-  示例：获取购物车列表
+  示例：
   ┌─────────────────────────────────────────────────────────────┐
-  │ HttpUtil.get(                                                │
-  │     HttpUtil.BASE_URL + "/shop-cart",  // URL               │
-  │     new HttpUtil.HttpCallback<String>() {                   │
-  │         public void onSuccess(String data) {                 │
-  │             // data = {"resultCode":200,"data":[{...},...]} │
-  │         }                                                    │
-  │         public void onError(String error) { }               │
-  │     }                                                        │
-  │ );                                                           │
+  │ HttpUtil.get(BASE_URL + "/shop-cart", callback);            │
+  │                                                              │
+  │ // → GET /mallapi/api/v1/shop-cart HTTP/1.1                 │
+  │ // → Header: token: xxx                                     │
   └─────────────────────────────────────────────────────────────┘
 
-  实际发出的 HTTP 请求：
-    GET /mallapi/api/v1/shop-cart HTTP/1.1
-    Host: 172.30.130.131:28019
-    token: a1b2c3d4e5f6...
+5.2 POST JSON —— 创建数据
 
-  项目中共 9 处使用 GET 请求。
+  用途：登录、注册、加购物车、创建订单、新增地址
 
-5.2 POST JSON 请求 —— 创建数据
-
-  用途：登录、注册、加入购物车、创建订单、新增地址等
-
-  示例：加入购物车
+  示例：
   ┌─────────────────────────────────────────────────────────────┐
   │ Map<String, Object> params = new HashMap<>();               │
   │ params.put("goodsCount", 1);                                │
-  │ params.put("goodsId", goodsId);                             │
+  │ params.put("goodsId", 10001L);                              │
+  │ HttpUtil.postJson(BASE_URL + "/shop-cart", params,          │
+  │     callback);                                              │
   │                                                              │
-  │ HttpUtil.postJson(                                           │
-  │     HttpUtil.BASE_URL + "/shop-cart",                       │
-  │     params,                // ← 自动转为 JSON {"goodsCount":1,"goodsId":10001}│
-  │     new HttpUtil.HttpCallback<String>() { ... }              │
-  │ );                                                           │
+  │ // → POST .../shop-cart                                    │
+  │ // → Body: {"goodsCount":1,"goodsId":10001}                │
   └─────────────────────────────────────────────────────────────┘
 
-  为什么使用 POST JSON 而不是 POST 表单？
-  - JSON 支持复杂数据结构（嵌套对象、数组）
-  - 例如创建订单时需要传 addressId(Long) + cartItemIds(List<Long>)，
-    表单只能传键值对字符串
-  - RESTful API 普遍使用 JSON 格式
+5.3 POST 表单 —— 表单提交
 
-  项目中共 6 处使用 POST JSON 请求。
+  与 POST JSON 的区别：
+  - Content-Type: application/x-www-form-urlencoded
+  - 请求体格式：key1=val1&key2=val2
+  项目中 postForm 方法已实现，但实际接口统一用 JSON。
 
-5.3 POST 表单请求 —— 表单提交
-
-  与 postJson 的区别：请求体格式是
-    Content-Type: application/x-www-form-urlencoded
-    loginName=13900139000&passwordMd5=xxx
-
-  项目中 postForm 方法已定义但未实际使用，因为后端 API 统一接受 JSON。
-
-5.4 PUT 请求 —— 更新数据
+5.4 PUT —— 更新数据
 
   用途：修改地址、修改购物车数量、确认收货
+  与 POST 实现几乎相同，仅 setRequestMethod("PUT")。
 
-  示例：确认收货
-  ┌─────────────────────────────────────────────────────────────┐
-  │ Map<String, String> emptyBody = new HashMap<>();            │
-  │ HttpUtil.put(                                                │
-  │     HttpUtil.BASE_URL + "/order/" + orderNo + "/finish",    │
-  │     emptyBody,                 // 空请求体                    │
-  │     new HttpUtil.HttpCallback<String>() { ... }              │
-  │ );                                                           │
-  └─────────────────────────────────────────────────────────────┘
-
-  实际发出的 HTTP 请求：
-    PUT /mallapi/api/v1/order/20231201001/finish HTTP/1.1
-    token: a1b2c3d4e5f6...
-    Content-Type: application/json
-    {}
-
-  put() 内部实现与 postJson 类似，区别只是 .put(body) 替代 .post(body)。
-
-5.5 DELETE 请求 —— 删除数据
+5.5 DELETE —— 删除数据
 
   用途：删除购物车商品、删除地址
-
-  示例：删除购物车商品
-  ┌─────────────────────────────────────────────────────────────┐
-  │ HttpUtil.delete(                                             │
-  │     HttpUtil.BASE_URL + "/shop-cart/" + cartItemId,         │
-  │     new HttpUtil.HttpCallback<String>() { ... }              │
-  │ );                                                           │
-  └─────────────────────────────────────────────────────────────┘
-
-  实际发出的 HTTP 请求：
-    DELETE /mallapi/api/v1/shop-cart/42 HTTP/1.1
-    token: a1b2c3d4e5f6...
+  参数在 URL 路径中（如 /shop-cart/{id}），不需要请求体。
 
 
 ================================================================================
@@ -520,138 +449,136 @@
 
 6.1 Gson 是什么？
 
-  Gson 是 Google 开发的 Java JSON 解析库，核心功能：
-  - 序列化：Java 对象 → JSON 字符串（toJson）
-  - 反序列化：JSON 字符串 → Java 对象（fromJson）
+  Gson 是 Google 的 Java JSON 库，核心功能：
+  - toJson(Object)   → Java 对象 → JSON 字符串
+  - fromJson(String) → JSON 字符串 → Java 对象
 
-6.2 项目中 Gson 的三种使用模式
+6.2 三种解析模式
 
-  模式一：简单对象解析
+  模式一：简单对象
   ┌─────────────────────────────────────────────────────────────┐
-  │ // JSON: {"goodsId":10001, "goodsName":"手机", "sellingPrice":2999}
-  │ Goods goods = gson.fromJson(jsonString, Goods.class);       │
-  │ // goods.getGoodsName() → "手机"                             │
+  │ Goods goods = gson.fromJson(json, Goods.class);             │
   └─────────────────────────────────────────────────────────────┘
-  适用场景：单个商品详情 (/goods/detail/{id})
+  用于：商品详情
 
-  模式二：泛型集合解析（TypeToken）
+  模式二：泛型集合（★ 需要 TypeToken）
   ┌─────────────────────────────────────────────────────────────┐
-  │ // JSON: {"resultCode":200, "data":[{...}, {...}]}          │
   │ Type type = new TypeToken<Result<List<Category>>>(){}       │
   │     .getType();                                             │
-  │ Result<List<Category>> result =                              │
-  │     gson.fromJson(jsonString, type);                        │
-  │ // result.getData() → List<Category>                        │
+  │ Result<List<Category>> result = gson.fromJson(json, type);  │
   └─────────────────────────────────────────────────────────────┘
-  适用场景：分类列表、购物车列表、订单列表、地址列表等
+  用于：分类/购物车/订单/地址列表
+  为什么需要 TypeToken？Java 泛型编译后擦除，Gson 不知道
+  List 里是什么类型。TypeToken 的匿名内部类保留泛型签名。
 
-  为什么需要 TypeToken？
-  ─────────────────────
-  Java 泛型在编译后会"擦除"：
-    List<Category> 编译后 → List（丢失了 Category 类型信息）
-
-  Gson 只看到 List，不知道里面放什么类型的对象，无法正确反序列化。
-
-  TypeToken 通过匿名内部类的方式，在运行时保留了泛型参数类型：
-    new TypeToken<Result<List<Category>>>(){} ← 匿名内部类
-    JVM 会保留这个类的泛型签名，Gson 可以读取到 Result<List<Category>>
-
-  模式三：手动 JSON 解析（JsonObject）
+  模式三：手动解析（JsonObject）
   ┌─────────────────────────────────────────────────────────────┐
   │ JsonObject json = gson.fromJson(data, JsonObject.class);    │
-  │ JsonObject dataObj = json.getAsJsonObject("data");          │
-  │ JsonArray items = dataObj.getAsJsonArray("newGoodses");     │
-  │ for (int i = 0; i < items.size(); i++) {                    │
-  │     Goods goods = gson.fromJson(items.get(i), Goods.class); │
+  │ JsonArray items = json.getAsJsonObject("data")              │
+  │     .getAsJsonArray("newGoodses");                          │
+  │ for (JsonElement e : items) {                               │
+  │     Goods goods = gson.fromJson(e, Goods.class);            │
   │ }                                                            │
   └─────────────────────────────────────────────────────────────┘
-  适用场景：/index-infos 聚合接口（返回结构不标准）
+  用于：/index-infos（返回结构不标准，data 中有4个不同类型的数组）
 
-  为什么不用 TypeToken 统一处理 /index-infos？
-  - /index-infos 返回的 data 不是标准的 Result<List<T>> 格式
-  - data 包含 carousels、newGoodses、hotGoodses、recommendGoodses
-    四个不同类型的数组
-  - 手动解析更灵活
-
-6.3 序列化：Java 对象 → JSON
+6.3 序列化
 
   ┌─────────────────────────────────────────────────────────────┐
-  │ // postJson() 方法内部                                       │
   │ Map<String, Object> params = new HashMap<>();               │
-  │ params.put("goodsCount", 1);                                │
-  │ params.put("goodsId", 10001L);                              │
+  │ params.put("goodsCount", 1);      // Integer → JSON 数字    │
+  │ params.put("goodsId", 10001L);    // Long → JSON 数字       │
   │                                                              │
   │ String json = gson.toJson(params);                          │
-  │ // 结果: {"goodsCount":1,"goodsId":10001}                    │
+  │ // → {"goodsCount":1,"goodsId":10001}                       │
   └─────────────────────────────────────────────────────────────┘
 
-  注意：参数类型用了 Map<String, Object> 而不是 Map<String, String>
-  - String 值会被序列化为 "1"（带引号的字符串）
-  - Object 值如果是 Integer/Long，会被序列为 1（不带引号的数字）
-  - 后端接口通常要求数字类型传数字，不要传字符串
+  注意：用 Map<String, Object> 而非 Map<String, String>，
+  否则数字会被序列化为带引号的字符串 "1"，后端可能无法解析。
 
 
 ================================================================================
-七、异步回调 → UI 线程切换原理
+七、异步线程池 → UI 线程切换原理
 ================================================================================
 
 7.1 为什么需要线程切换？
 
-  Android 有一个核心规则：只能在主线程（UI 线程）操作 UI 组件。
-  如果在子线程中调用 TextView.setText()、Toast.makeText()、
-  adapter.notifyDataSetChanged() 等，会抛出 CalledFromWrongThreadException。
+  Android 核心规则：只能主线程操作 UI。
 
-  OkHttp 的 enqueue() 在内部线程池中执行网络请求，
-  回调 onResponse/onFailure 也在子线程中。
-  所以必须将数据"传递"回主线程才能更新 UI。
+  HttpURLConnection 的 connect() 和 getInputStream() 是同步阻塞的——
+  线程会卡住等待网络响应，可能耗时数秒甚至 30 秒超时。
 
-7.2 HttpUtil 的切换方案：Handler + Looper
+  如果在主线程执行 → UI 卡死 → ANR（应用无响应）对话框。
+
+  因此必须：
+  (1) 在后台线程执行网络请求
+  (2) 拿到数据后切回主线程更新 UI
+
+7.2 后台线程：ExecutorService 线程池
 
   ┌─────────────────────────────────────────────────────────────┐
-  │ // 1. 获取主线程的 Looper，创建 Handler                       │
+  │ // 创建固定 4 个线程的线程池                                   │
+  │ private static final ExecutorService threadPool =            │
+  │     Executors.newFixedThreadPool(4);                        │
+  │                                                              │
+  │ // 使用：将网络请求提交到线程池                                 │
+  │ threadPool.execute(() -> {                                   │
+  │     // 这里的代码在后台线程执行                                │
+  │     conn.connect();                 // ← 阻塞等待            │
+  │     String body = readResponse();   // ← 阻塞等待            │
+  │ });                                                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么线程池大小是 4？
+  - 移动端并发网络请求通常不超过 3-4 个
+  - 太多线程浪费内存，太少会排队等待
+  - 4 是 Android 开发中的经验值
+
+7.3 切回主线程：Handler + Looper
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ // 创建绑定主线程 Looper 的 Handler                           │
   │ private static final Handler mainHandler =                   │
   │     new Handler(Looper.getMainLooper());                    │
   │                                                              │
-  │ // 2. 在子线程回调中，用 mainHandler.post() 投递到主线程       │
+  │ // 在后台线程中，用 post() 将 Runnable 投递到主线程消息队列     │
   │ mainHandler.post(() -> {                                     │
   │     // 这里的代码在主线程执行                                  │
   │     callback.onSuccess(body);                                │
+  │     // 调用方可以直接 Toast、setText、notifyDataSetChanged    │
   │ });                                                          │
   └─────────────────────────────────────────────────────────────┘
 
-  Looper.getMainLooper() 获取的是 Android 主线程的消息循环。
-  Handler.post(Runnable) 将任务放入主线程的 MessageQueue 中排队执行。
+  线程切换时序图：
+  ┌──────────────────────────────────────────────────────┐
+  │  主线程                          后台线程（线程池）       │
+  │  ────────                        ────────             │
+  │  threadPool.execute()  ──────→    conn.connect()      │
+  │  (继续处理 UI 事件)               ↓ 阻塞等待            │
+  │                                  readResponse()       │
+  │                                  ↓                    │
+  │  mainHandler.post() ←────────   callback.onSuccess()  │
+  │  (在消息队列中排队)                                    │
+  │  ↓                                                   │
+  │  Toast/notifyDataSetChanged                           │
+  └──────────────────────────────────────────────────────┘
 
-7.3 Activity 中可能还需要额外 check
+7.4 Activity 销毁安全检查
 
-  虽然 HttpUtil 已经切回主线程，但在网络请求过程中，
-  Activity 可能已被销毁（用户返回了上一页）。
-
-  所以在回调中仍需检查 Activity 是否存在：
+  网络请求执行期间，用户可能已经返回上一页（Activity 已销毁）。
+  回调中必须检查：
 
   ┌─────────────────────────────────────────────────────────────┐
   │ callback.onSuccess(data -> {                                 │
-  │     if (getActivity() == null) return;  // Activity 已销毁   │
-  │     if (isDetached()) return;           // Fragment 已分离   │
+  │     if (getActivity() == null) return; // Activity 已销毁    │
   │     // 安全更新 UI                                           │
   │ });                                                          │
   └─────────────────────────────────────────────────────────────┘
-
-  部分代码还额外使用了 runOnUiThread，这是"双重保险"：
-  ┌─────────────────────────────────────────────────────────────┐
-  │ getActivity().runOnUiThread(() -> {                          │
-  │     adapter.notifyDataSetChanged();                         │
-  │ });                                                          │
-  └─────────────────────────────────────────────────────────────┘
-  因为 HttpUtil 已经在主线程回调了，runOnUiThread 相当于直接执行，
-  不会有多余开销。
 
 
 ================================================================================
 八、项目中所有 API 调用一览
 ================================================================================
-
-  以下列出项目中所有的网络请求及其位置：
 
   ┌────────┬──────────────────────────────────┬──────────────────────┐
   │ 方法    │ URL 路径                          │ 调用位置             │
@@ -665,9 +592,7 @@
   │ GET    │ /goods/detail/{id}                │ DetailActivity       │
   │ GET    │ /search?keyword=&orderBy=&page=   │ SearchActivity /     │
   │        │                                   │ CategoryFragment     │
-  │ GET    │ /shop-cart                        │ CartFragment /       │
-  │        │                                   │ MainActivity /       │
-  │        │                                   │ DetailActivity /     │
+  │ GET    │ /shop-cart                        │ Cart/Main/Detail/    │
   │        │                                   │ CreateOrderActivity  │
   │ POST   │ /shop-cart                        │ DetailActivity       │
   │ POST   │ /shop-cart/update                 │ CartFragment         │
@@ -685,71 +610,81 @@
   │ GET    │ /address/{id}                     │ AddressEditActivity  │
   └────────┴──────────────────────────────────┴──────────────────────┘
 
-  统计：
-  - GET 请求：9 处
-  - POST JSON 请求：6 处
-  - PUT 请求：3 处
-  - DELETE 请求：2 处
-  总计约 20 处 API 调用点，覆盖 19 个接口端点。
+  统计：GET 9处 / POST 6处 / PUT 3处 / DELETE 2处 = 约 20 处调用
 
 
 ================================================================================
 九、常见问题与注意事项
 ================================================================================
 
-9.1 为什么网络请求不能在主线程执行？
+9.1 为什么用 HttpURLConnection 而不是 OkHttp？
 
-  Android 从 3.0 (Honeycomb) 开始禁止在主线程执行网络操作。
-  原因：
-  - 网络请求可能耗时数秒甚至超时（30秒）
-  - 主线程负责渲染 UI（每 16ms 刷新一帧），被阻塞会导致
-    ANR（Application Not Responding）对话框
-  - OkHttp 的 enqueue 自动在子线程执行，符合 Android 规范
+  实训要求使用 HttpURLConnection。两者都能完成相同的功能，
+  HttpURLConnection 是 JDK 内置的，不需要额外依赖。
 
-9.2 为什么 response.body().string() 只能调一次？
+9.2 setDoOutput(true) 什么时候需要？
 
-  ResponseBody 是一个流（Stream），数据读取后就消耗了。
-  如果需要多次读取，应该先存到一个变量中：
-    String body = response.body().string(); // 读取一次
-    Log.d("API", body);                     // 可以多次使用 body 变量
-    callback.onSuccess(body);
+  - GET：不需要（没有请求体）
+  - POST/PUT：必须设置，否则 conn.getOutputStream() 抛异常
+  - DELETE：不需要（没有请求体）
 
-  本项目正是这样做的，不会出现二次读取的问题。
+9.3 为什么 response.body().string() 只能读一次？
 
-9.3 为什么要用 Gson 而不是 org.json？
+  InputStream 是流式读取，数据一旦消费就没了。
+  HttpURLConnection 同样：getInputStream() 返回的流只能读一次。
+  所以 readResponse() 中读到 StringBuilder 后返回，调用方用的是
+  返回的 String，不会再读流。
 
-  - org.json (JSONObject/JSONArray) 需要手动逐字段解析，代码冗长
-  - Gson 直接映射到 Java 对象，一行 fromJson 完成解析
-  - Gson 支持泛型（TypeToken），org.json 不支持
-  - Gson 是 Google 官方推荐，与 Android 生态集成更好
+9.4 为什么 500 错误时也能拿到响应体？
 
-9.4 支付接口为什么是 GET 而不是 POST？
+  项目用 getErrorStream() 读取 4xx/5xx 响应体。
+  后端在错误时也会返回 JSON：
+    {"resultCode":500, "message":"参数错误"}
+  这样才能在 Toast 中显示具体的错误信息，而不是笼统的"服务器错误"。
 
-  正常支付应该是 POST 请求（涉及资金操作）。但本项目的后端
-  /paySuccess 接口是 GET 方法——这是后端实训环境的简化设计，
-  用 GET 模拟支付结果。客户端按照后端的接口规范调用，不自行决定
-  HTTP 方法。
+9.5 支付接口为什么是 GET？
 
-9.5 参数类型问题：Map<String, String> vs Map<String, Object>
+  正常支付应该用 POST（涉及资金操作）。但后端 /paySuccess 接口是
+  GET 方法，客户端按后端规范调用。
 
-  这是本项目实际遇到并修复过的问题：
-  - 地址保存时 defaultFlag 用 "1"（字符串）→ 后端无法解析
-  - 改为 1（整数）→ 后端正确接收
+9.6 参数类型为什么用 Map<String, Object>？
 
-  根因：Gson 序列化 Map<String, String> 时，所有值都带引号。
-  如果接口期望数字类型，需要传不带引号的数字。
-  解决：使用 Map<String, Object>，数字值传 Integer/Long。
+  地址保存功能遇到过参数类型问题：
+  - Map<String, String> → "defaultFlag":"1"（字符串）→ 后端解析失败
+  - Map<String, Object> → "defaultFlag":1（数字）→ 正确
+  Gson 根据 Java 类型决定 JSON 类型，String → 带引号，Integer → 不带。
 
-9.6 接口返回 500 错误怎么排查？
+9.7 HttpURLConnection 需要关闭连接吗？
 
-  经验总结：
-  (1) 检查 URL 是否正确（有无拼写错误、多余空格）
-  (2) 检查参数是否完整（是否缺少必填参数）
-  (3) 检查参数类型是否正确（字符串 vs 数字）
-  (4) 检查 Token 是否正确传递（Header 中是否有 token）
-  (5) 用 curl 排除客户端代码问题：
-      curl "http://172.30.130.131:28019/mallapi/api/v1/paySuccess?orderNo=xxx&payType=1"
-  (6) 查看后端 Swagger 文档确认接口规范
+  需要。每次请求结束在 finally 块中调用 conn.disconnect()。
+  不关闭会导致连接泄漏，积累到一定数量后无法建立新连接。
+
+
+================================================================================
+十、附：HttpURLConnection 与 OkHttp 对比
+================================================================================
+
+  ┌──────────────────┬──────────────────────┬──────────────────────┐
+  │ 特性               │ HttpURLConnection    │ OkHttp               │
+  ├──────────────────┼──────────────────────┼──────────────────────┤
+  │ 来源               │ JDK 内置             │ Square 开源库         │
+  │ 是否需要依赖        │ 否                   │ 是 (okhttp3)         │
+  │ 请求执行方式        │ 同步阻塞             │ 异步 (enqueue)       │
+  │ 线程管理            │ 需手动线程池          │ 内置线程池            │
+  │ 请求构建            │ 逐个 setProperty     │ Builder 链式调用      │
+  │ 连接池              │ 无（每次新建连接）    │ 内置连接池，复用连接   │
+  │ 请求体写入          │ OutputStream.write   │ RequestBody.create   │
+  │ 响应读取            │ InputStream +        │ response.body()      │
+  │                    │ BufferedReader       │ .string()            │
+  │ 超时设置            │ setConnectTimeout    │ Builder.connect-     │
+  │                    │ setReadTimeout       │ Timeout/readTimeout  │
+  │ Token 注入          │ setRequestProperty   │ addHeader            │
+  │ HTTP/2 支持         │ 否（Java 8）         │ 是                   │
+  │ 自动重试            │ 否                   │ 是                   │
+  └──────────────────┴──────────────────────┴──────────────────────┘
+
+  本项目同时保留了两种实现的完整代码：上方是当前使用的 HttpURLConnection
+  版本，底部注释中是原始的 OkHttp 版本，方便答辩时对比讲解。
 
 ================================================================================
                            文档编写日期：2026年6月
