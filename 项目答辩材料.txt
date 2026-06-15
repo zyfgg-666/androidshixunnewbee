@@ -1,466 +1,1032 @@
 ================================================================================
-                    新蜂商城 (NewBee2) Android 项目答辩材料
+               新蜂商城 (NewBee2) Android 项目答辩材料（详细版）
 ================================================================================
 
+目录：
+  一、项目概述
+  二、技术架构与选型理由
+  三、核心功能详细实现（含代码分析）
+  四、API 接口设计
+  五、关键技术难点与解决方案（含调试过程）
+  六、UI/UX 设计体系
+  七、项目数据统计
+  八、开发过程与版本管理
+  九、总结与展望
+
+
+================================================================================
 一、项目概述
---------------------------------------------------------------------------------
-项目名称：新蜂商城 (NewBee2) Android 客户端
-开发语言：Java 11
-最低支持：Android 7.0 (API 24)
-目标版本：Android 15 (API 35)
-开发工具：Android Studio
-版本控制：Git + GitHub
+================================================================================
 
-本项目是一个基于 Android 原生开发的电商 App，实现了完整的移动端购物流程，
-包括商品浏览、分类检索、购物车管理、订单创建与支付、地址管理等核心功能。
-后端通过 RESTful API 与 Spring Boot 服务交互。
+1.1 基本信息
+  - 项目名称：新蜂商城 (NewBee2) Android 客户端
+  - 开发语言：Java 11
+  - 最低 SDK：Android 7.0 (API 24)
+  - 目标 SDK：Android 15 (API 35)
+  - 开发环境：Android Studio Hedgehog
+  - 构建工具：Gradle 8.x + Kotlin DSL
+  - 版本管理：Git + GitHub (https://github.com/zyfgg-666/androidshixunnewbee)
+
+1.2 项目背景
+  本项目的后端是学校实训环境部署的 Spring Boot 商城 API 服务，运行在
+  http://172.30.130.131:28019/mallapi/。前端为 Android 原生 App，需要实现
+  完整的移动端电商购物流程。
+
+1.3 功能范围
+  - 用户登录/注册（MD5密码加密）
+  - 首页：轮播图、分类入口、三大商品板块
+  - 分类浏览：左右联动分类+商品展示
+  - 商品搜索：关键词搜索+排序+分页
+  - 商品详情：图片、信息展示+加购+购买
+  - 购物车：商品管理、全选、结算
+  - 订单系统：创建、支付、状态流转、确认收货
+  - 地址管理：增删改查+省市区三级选择器
+  - 个人中心：用户信息+订单红点提示
+  - 品牌设计：App图标+启动页
 
 
-二、技术架构
---------------------------------------------------------------------------------
+================================================================================
+二、技术架构与选型理由
+================================================================================
+
 2.1 整体架构：MVC 模式
-
-    [View 层] ──> layout XML + Activity/Fragment
-    [Controller 层] ──> Activity/Fragment (业务逻辑)
-    [Model 层] ──> model 包 (数据模型) + utils 包 (工具类)
-
-2.2 核心技术栈
-
-    ┌──────────────┬────────────────────────────────┐
-    │ 技术领域      │ 使用的技术                      │
-    ├──────────────┼────────────────────────────────┤
-    │ 网络请求      │ OkHttp 4.9.3                   │
-    │ JSON 解析     │ Gson 2.10.1                    │
-    │ 图片加载      │ Glide 4.12.0                   │
-    │ 列表控件      │ RecyclerView + CardView        │
-    │ 页面导航      │ ViewPager2 + BottomNavigation  │
-    │ 轮播图        │ ViewPager2 + Handler 定时器     │
-    │ 数据持久化    │ SharedPreferences (Token 存储)  │
-    │ 矢量图标      │ Android Vector Drawable         │
-    │ 角标提示      │ Material BadgeDrawable          │
-    └──────────────┴────────────────────────────────┘
-
-2.3 项目模块结构
-
-    app/src/main/java/com/example/newbee2/
-    ├── MainActivity.java              # 主页面（ViewPager2 + 底部导航）
-    ├── SplashActivity.java            # 启动页（2秒后跳转主页）
-    ├── LoginActivity.java             # 登录/注册
-    ├── SearchActivity.java            # 商品搜索
-    ├── DetailActivity.java            # 商品详情
-    ├── CreateOrderActivity.java       # 创建订单 + 支付
-    ├── OrderListActivity.java         # 订单列表（多Tab）
-    ├── AddressListActivity.java       # 地址列表
-    ├── AddressEditActivity.java       # 地址编辑（含省市区选择器）
-    ├── AboutActivity.java             # 关于我们
-    ├── adapter/                       # 10个适配器
-    │   ├── GoodsAdapter.java          # 商品列表适配器
-    │   ├── CartAdapter.java           # 购物车适配器
-    │   ├── OrderAdapter.java          # 订单列表适配器
-    │   ├── OrderGoodsAdapter.java     # 订单商品适配器
-    │   ├── BannerAdapter.java         # 轮播图适配器
-    │   ├── CategoryLeftAdapter.java   # 分类左侧适配器
-    │   ├── CategoryGridAdapter.java   # 分类网格适配器(首页)
-    │   ├── SearchGoodsAdapter.java    # 搜索结果适配器
-    │   └── AddressAdapter.java        # 地址列表适配器
-    ├── fragment/                      # 4个Fragment
-    │   ├── HomeFragment.java          # 首页（轮播+分类+商品）
-    │   ├── CategoryFragment.java      # 分类页（左右联动）
-    │   ├── CartFragment.java          # 购物车页
-    │   └── MyFragment.java            # 我的页（订单+设置）
-    ├── model/                         # 8个数据模型
-    │   ├── Goods.java, Category.java, CartItem.java,
-    │   ├── Order.java, OrderItem.java, Address.java,
-    │   ├── User.java, Result.java, RegionData.java
-    ├── utils/                         # 3个工具类
-    │   ├── HttpUtil.java              # OkHttp 封装
-    │   ├── ImageUtil.java             # Glide 封装
-    │   └── MD5Util.java               # MD5 加密
-    └── widget/
-        └── MyGridView.java            # 自定义 GridView（解决嵌套冲突）
-
-
-三、核心功能实现详解
---------------------------------------------------------------------------------
-
-3.1 首页 (HomeFragment + fragment_home.xml)
-
-    功能描述：
-    - 顶部搜索栏（青绿色背景，含分类入口和用户入口）
-    - 轮播图区域（ViewPager2 自动轮播，3秒切换）
-    - 分类快捷入口（网格展示，点击跳转分类页并自动选中）
-    - 三大商品板块：新品上线、热门商品、最新推荐
-    - 每板块横向 GridView 展示商品
-
-    技术要点：
-    - 使用 ViewPager2 实现自动轮播，通过 Handler.postDelayed 定时切换
-    - onPause 时停止轮播，onResume 时恢复，优化性能
-    - 首页数据从 /index-infos 接口一次性获取（轮播+新品+热销+推荐）
-    - 分类数据从 /categories 接口获取
-    - 自定义 MyGridView 继承 GridView 并重写 onMeasure，
-      解决 ScrollView 嵌套 GridView 的高度计算问题
-
-3.2 分类页 (CategoryFragment + fragment_category.xml)
-
-    功能描述：
-    - 青绿色标题栏
-    - 左侧一级分类列表（RecyclerView，竖向滚动）
-    - 右侧商品网格（GridView，2列）
-    - 左右联动：点击左侧分类 → 右侧显示对应商品
-    - 选中项高亮显示
-
-    技术要点：
-    - 分类数据与首页共享 /categories 接口
-    - 首页点击分类 → CategoryFragment.setPendingCategory → 自动选中
-    - 商品数据通过搜索接口获取（按关键词匹配不同分类）
-
-3.3 商品详情 (DetailActivity + activity_detail.xml)
-
-    功能描述：
-    - 商品大图展示（Glide 加载）
-    - 商品名称、简介、价格、详情
-    - 底部购物车图标（带红点角标）+ 加入购物车 + 立即购买
-
-    技术要点：
-    - 购物车图标带有实时数量红点角标（读取 /shop-cart 接口）
-    - 点击购物车图标 → 跳转购物车页面
-    - 加入购物车：POST /shop-cart
-    - 立即购买：加入购物车 → 跳转创建订单页 → 支付
-
-3.4 购物车 (CartFragment + fragment_cart.xml)
-
-    功能描述：
-    - 商品列表（RecyclerView）
-    - 全选 / 取消全选
-    - 数量增减、删除商品
-    - 底部结算栏（合计金额 + 结算按钮）
-    - 底部导航栏红点角标显示购物车数量
-
-    技术要点：
-    - 使用 BadgeDrawable 实现底部导航角标
-    - 静态方法 loadCartCountStatic() 供其他 Activity 调用刷新
-    - 数量修改：PUT /shop-cart/{id}
-    - 删除：DELETE /shop-cart/{id}
-    - 结算：跳转创建订单页
-
-3.5 创建订单与支付 (CreateOrderActivity + activity_create_order.xml)
-
-    功能描述：
-    - 选择收货地址（跳转地址列表选择）
-    - 展示订单商品列表
-    - 显示订单号和合计金额
-    - 提交订单 → 弹出支付选择对话框
-    - 微信支付（绿色按钮）/ 支付宝支付（蓝色按钮）
-    - 支付成功 → 订单进入待发货；失败 → 保留待支付
-
-    技术要点：
-    - 订单创建：POST /saveOrder，传 addressId + cartItemIds
-    - 支付接口：GET /paySuccess?orderNo=xxx&payType=x
-    - payType: 1=微信，2=支付宝
-    - 支付对话框：AlertDialog + 自定义布局 dialog_pay.xml
-    - 订单号在创建成功后显示在界面上
-
-    遇到的BUG及解决：
-    - 问题：最初只传 orderNo，API 返回 500 错误
-    - 排查：通过 curl 抓取 Swagger 文档，发现需要 payType 参数
-    - 解决：URL 改为 /paySuccess?orderNo=xxx&payType=x
-
-3.6 订单列表 (OrderListActivity + activity_order_list.xml)
-
-    功能描述：
-    - 6个Tab：全部、待支付、待确认、待发货、待收货、已完成
-    - TabLayout + RecyclerView 实现
-    - 不同状态订单有不同操作按钮：
-      · 待支付 → "立即支付"按钮
-      · 待收货 → "确认收货"按钮
-      · 其他状态 → 不显示操作按钮
-
-    技术要点：
-    - 订单状态码：0=待支付, 1=待确认, 2=待发货, 3=待收货, 4=已完成
-    - 支付：GET /paySuccess
-    - 确认收货：PUT /order/{orderNo}/finish
-    - 待确认→待发货 是管理员操作，客户端不提供此转换
-    - RecyclerView 每个 item 根据 orderStatus 动态切换按钮
-
-3.7 我的页面 (MyFragment + fragment_my.xml)
-
-    功能描述：
-    - 用户信息卡片（青绿渐变背景，头像+昵称+签名）
-    - 我的订单入口（6个图标：全部/待支付/待确认/待发货/待收货/已完成）
-    - 待支付/待发货/待收货 带红色数量角标
-    - 地址管理入口
-    - 关于我们入口
-    - 退出登录
-
-    技术要点：
-    - 订单数量红点：分别请求 status=0/2/3 的订单列表获取 totalCount
-    - 未登录时红点隐藏，登录后实时更新
-    - 用户信息从 /user/info 获取
-    - Token 通过 SharedPreferences 存储
-
-3.8 地址管理 (AddressListActivity + AddressEditActivity)
-
-    功能描述：
-    - 地址列表（RecyclerView）
-    - 新增/编辑地址
-    - 省市区三级联动选择器
-    - 支持选择地址模式（创建订单时选择）
-
-    技术要点：
-    - 省市区选择器：三栏 ListView 联动，31个省份完整数据
-    - 选中项红色高亮
-    - 选省→城市列表刷新，选市→区县列表刷新
-    - 保存时自动拆分为 provinceName/cityName/regionName
-    - CRUD 操作：GET/POST/PUT/DELETE /address
-
-3.9 搜索功能 (SearchActivity)
-
-    - 通过 /search?keyword=xxx 接口模糊搜索
-    - 搜索结果使用 RecyclerView 展示
-    - 点击进入商品详情
-
-3.10 登录注册 (LoginActivity)
-
-    - 登录：POST /user/login
-    - 注册：POST /user/register
-    - Token 存储到 SharedPreferences
-    - 未登录时自动跳转登录页
-
-3.11 启动页 (SplashActivity)
-
-    - 全屏青绿渐变背景
-    - 蜜蜂手推购物车品牌 Logo（自定义 Vector Drawable）
-    - 应用名称"新蜂商城"+ 副标题
-    - 2秒后自动跳转主页
-
-3.12 App 图标设计
-
-    - 自适应图标 (Adaptive Icon)
-    - 青绿色圆形背景
-    - 金色蜜蜂居中，双手拎购物袋
-    - 带翅膀、触角、眼睛、嘴巴，可爱风格
-
-
-四、API 接口清单
---------------------------------------------------------------------------------
-接口总数：19个
-
-    用户模块：
-    POST /user/login         - 用户登录
-    POST /user/register      - 用户注册
-    GET  /user/info          - 获取用户信息
-
-    首页模块：
-    GET  /index-infos        - 首页数据（轮播+新品+热销+推荐）
-    GET  /categories         - 商品分类
-    GET  /goods/detail/{id}  - 商品详情
-    GET  /search?keyword=    - 搜索商品
-
-    购物车模块：
-    GET    /shop-cart        - 获取购物车
-    POST   /shop-cart        - 添加商品到购物车
-    PUT    /shop-cart/{id}   - 修改数量
-    DELETE /shop-cart/{id}   - 删除商品
-
-    订单模块：
-    POST /saveOrder          - 创建订单
-    GET  /order?status=      - 获取订单列表
-    GET  /paySuccess?orderNo=&payType=  - 支付
-    PUT  /order/{no}/finish  - 确认收货
-
-    地址模块：
-    GET    /address          - 地址列表
-    POST   /address          - 新增地址
-    PUT    /address          - 修改地址
-    DELETE /address/{id}     - 删除地址
-    GET    /address/{id}     - 地址详情
-
-
-五、关键技术难点与解决方案
---------------------------------------------------------------------------------
-
-5.1 ScrollView 嵌套 GridView 高度问题
-
-    问题：首页 ScrollView 内嵌多个 GridView 展示商品，GridView 只显示一行
-    原因：GridView 在 ScrollView 中无法正确计算自身高度
-    解决：自定义 MyGridView 类，重写 onMeasure 方法：
-        int expandSpec = MeasureSpec.makeMeasureSpec(
-            Integer.MAX_VALUE >> 2, MeasureSpec.AT_MOST);
-        使 GridView 完全展开。注意：此方案不适用于大数据量场景。
-
-5.2 ViewPager2 嵌套问题
-
-    问题：首页轮播图 ViewPager2 在 ScrollView 中需要固定高度
-    解决：设置固定 180dp 高度，通过 adapter 动态加载 banner 图片
-
-5.3 底部导航角标实现
-
-    问题：需要在购物车 Tab 上显示实时商品数量
-    解决：使用 Material Design 的 BadgeDrawable：
-        BadgeDrawable badge = bottomNav.getOrCreateBadge(R.id.nav_cart);
-        badge.setNumber(count);
-    通过 MainActivity 静态方法供其他 Activity 调用刷新角标。
-
-5.4 Fragment 间通信
-
-    问题：首页分类点击需要跳转到分类 Tab 并选中对应分类
-    解决：CategoryFragment 设置静态 pendingCategoryId，
-         在 onResume/l oadCategories 中检测并自动选中。
-         使用 MainActivity.switchToTab() 切换页面。
-
-5.5 省市区三级联动
-
-    问题：需要实现真正的省市区选择，而非手动输入
-    解决：
-    - 创建 RegionData 类，包含31个省份的完整数据
-    - 三栏 ListView 并排显示
-    - 选中省份→更新城市列表，选中城市→更新区县列表
-    - 自定义 Adapter 实现选中项红色高亮
-
-5.6 红点角标被裁剪问题
-
-    问题：使用负边距定位红点时，被父布局 clipChildren 裁剪
-    解决：
-    - 改用大 FrameLayout (36dp) 包裹图标 (30dp)
-    - 图标 bottom|start 对齐，红点 top|end 对齐
-    - 红点完全落在容器内，无需负边距
-    - 根布局和每个父布局添加 clipChildren="false"
-
-5.7 自定义矢量图标
-
-    问题：系统图标与功能不匹配
-    解决：全部使用 Android Vector Drawable 自定义图标
-    - 底部导航：🏠 首页 / ⊞ 分类 / 🛒 购物车 / 👤 我的
-    - 订单图标：📋 全部 / 💳 待支付 / ✅ 待确认 / 🚚 待发货 / 📦 待收货 / ✅ 已完成
-    - 分类图标：使用 Material Design 矢量图（TV/衣服/家具/运动/游戏/爱心/扳手/鞋/拼图）
-    - App 图标：青绿底+金色蜜蜂+购物袋（自适应图标）
-
-5.8 Emoji 图标渲染不一致
-
-    问题：部分 emoji（如👤）在 textColor="#FFFFFF" 时不响应颜色变化
-    原因：部分 emoji 是彩色字符，不受单色 textColor 控制
-    解决：改用 ImageView + Vector Drawable + android:tint
-
-5.9 会员卡支付接口调试
-
-    问题：支付 API 请求返回 500 错误
-    排查过程：
-    - 抓取 Swagger 接口文档
-    - 对比官方网页版请求参数
-    - 发现缺少必填参数 payType
-    解决：URL 确认为 /paySuccess?orderNo=xxx&payType=x
-
-
-六、UI/UX 设计特点
---------------------------------------------------------------------------------
-
-6.1 色彩体系
-    - 主色调：青绿色 #00C9A7（头部/导航/按钮）
-    - 辅助色：橙色（保存按钮）、红色（红点角标/价格）
-    - 背景色：浅灰 #F5F5F5
-    - 白色卡片式内容区域
-
-6.2 图标系统
-    - 全项目 30+ 个自定义 Vector Drawable
-    - 统一的 Material Design 风格
-    - 底部导航每个图标语义明确
-    - 分类图标各有主题色
-
-6.3 交互细节
-    - 底部导航带红点数量角标
-    - 订单图标带红色数量提示
-    - 支付选择弹窗（微信绿色/支付宝蓝色）
-    - 省市区三级联动选择器
-    - 轮播图自动播放
-    - 启动页品牌展示
-
-6.4 状态处理
-    - 未登录自动跳转登录页
-    - 空购物车提示"购物车空空如也~"
-    - 无地址提示"请选择收货地址"
-    - 网络错误 Toast 提示
-    - API 失败显示具体错误信息
-
-
-七、项目统计
---------------------------------------------------------------------------------
-    Java 源文件：      30+ 个
-    XML 布局文件：     20+ 个
-    Vector 矢量图：    30+ 个
-    Activity：         10 个
-    Fragment：         4 个
-    Adapter：          9 个
-    Model：            9 个
-    Utility：          3 个
-    API 接口对接：     19 个
-    总代码行数：       约 6000+ 行
-
-
-八、开发流程
---------------------------------------------------------------------------------
-    1. 项目初始化：创建 Android 项目，配置 Gradle 依赖
-    2. 搭建框架：MainActivity + ViewPager2 + BottomNavigation
-    3. 网络层封装：HttpUtil (OkHttp + Gson + Token 管理)
-    4. 登录注册：LoginActivity + Token 持久化
-    5. 首页开发：轮播图 + 分类网格 + 商品板块
-    6. 商品详情：图片展示 + 加入购物车 + 立即购买
-    7. 购物车：列表管理 + 数量修改 + 结算
-    8. 订单系统：创建订单 + 支付 + 订单列表 + 状态流转
-    9. 地址管理：CRUD + 省市区选择器
-    10. 我的页面：用户信息 + 订单红点 + 关于我们
-    11. UI 美化：图标系统 + 红点角标 + 统一配色
-    12. 品牌设计：App 图标 + 启动页
-    13. 测试调试：接口联调 + Bug 修复
-    14. 版本管理：Git + GitHub 代码托管
-
-
-九、Git 提交记录（摘要）
---------------------------------------------------------------------------------
-    1.  Initial commit: 新蜂商城 Android App
-    2.  docs: 添加项目 README 文档
-    3.  feat: 商品详情页购物车图标添加红点角标
-    4.  fix: 修复详情页购物车图标跳转到首页问题
-    5.  feat: 底部导航图标替换为语义相关图标
-    6.  feat: 我的界面所有图标替换
-    7.  fix: 订单红点裁剪问题修复
-    8.  feat: 地址管理省市区三级联动选择器
-    9.  fix: 地址保存检查API返回结果
-    10. style: 首页搜索栏青绿色背景
-    11. feat: 分类界面添加标题栏
-    12. feat: 首页分类自动跳转并选中
-    13. style: 首页分类图标改为矢量图
-    14. feat: 设计App图标和启动页
-    15. fix: App图标蜜蜂放大，居中手拿购物袋
-    16. feat: 启动页蜜蜂手推购物车
-
-
-十、总结与展望
---------------------------------------------------------------------------------
-10.1 项目成果
-    - 完成了一个功能完整的电商 App
-    - 覆盖了电商的核心业务流程（浏览→加购→下单→支付→收货）
-    - 学会了 OkHttp 网络请求、Gson 解析、Glide 图片加载
-    - 掌握了 ViewPager2、RecyclerView、Fragment 等核心组件
-    - 理解了 RESTful API 的对接流程和调试方法
-    - 实践了 Android 自定义 View 和 Vector Drawable
-    - 形成了良好的 Git 版本管理习惯
-
-10.2 可优化方向
-    - 引入 ViewModel + LiveData 实现 MVVM 架构
-    - 使用 Room 数据库实现离线缓存
-    - 添加下拉刷新和上拉加载更多
-    - 引入 RxJava 或 Kotlin Coroutines 优化异步处理
-    - 增加单元测试和 UI 测试
-    - 商品详情页添加商品图片轮播
-    - 添加商品收藏功能
-    - 优化图片加载策略（缩略图/压缩）
-
-10.3 技术收获
-    - 深入理解了 Android 四大组件和 Fragment 生命周期
-    - 掌握了主流第三方库的集成和使用
-    - 学会了通过 Swagger/curl 调试后端接口
-    - 提升了 UI 布局和自定义 View 的能力
-    - 积累了实际项目的问题排查经验
+  本项目采用经典的 MVC (Model-View-Controller) 架构：
+
+  [View 层]           XML 布局文件 + Activity/Fragment
+       ↕
+  [Controller 层]     Activity/Fragment（处理用户交互+业务逻辑）
+       ↕
+  [Model 层]          model 包（数据实体）+ utils 包（工具类）
+
+  选型原因：
+  - 项目规模适中，MVC 足够清晰，不需要 ViewModel 的额外复杂度
+  - Java 语言+传统 MVC 是 Android 入门实训的标准架构
+  - 每个 Activity/Fragment 职责单一，便于理解和维护
+
+2.2 页面架构：ViewPager2 + BottomNavigationView
+
+  主页面采用"单 Activity + 多 Fragment + ViewPager2"架构：
+
+  MainActivity
+    └── ViewPager2（禁止滑动）
+         ├── Fragment 0: HomeFragment     首页
+         ├── Fragment 1: CategoryFragment 分类
+         ├── Fragment 2: CartFragment     购物车
+         └── Fragment 3: MyFragment       我的
+
+  为什么这么做：
+  (1) 使用 ViewPager2 而不是手动 replace Fragment：
+      - ViewPager2 内置 Fragment 缓存机制，切换 Tab 时已加载的 Fragment
+        不会销毁重建，用户体验更流畅
+      - FragmentStateAdapter 自动管理 Fragment 生命周期
+
+  (2) 禁止滑动切换（setUserInputEnabled(false)）：
+      - 电商 App 通常只用底部导航切换，滑动容易误触
+      - 购物车页面有横向滑动的交互（如左滑删除），与 ViewPager2
+        的左右滑动冲突，禁掉更安全
+
+  (3) ViewPager2 与 BottomNav 双向联动：
+      - onPageSelected → bottomNav.setSelectedItemId()（页面变化同步导航）
+      - onItemSelected → viewPager.setCurrentItem()（导航点击切换页面）
+      - 双向绑定确保两者状态始终一致
+
+  关键代码（MainActivity.java）：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ // FragmentStateAdapter 创建4个Fragment                      │
+  │ viewPager.setAdapter(new FragmentStateAdapter(this) {       │
+  │     public int getItemCount() { return 4; }                 │
+  │     public Fragment createFragment(int position) {          │
+  │         switch (position) {                                 │
+  │             case 0: return new HomeFragment();              │
+  │             case 1: return new CategoryFragment();          │
+  │             case 2: return new CartFragment();              │
+  │             case 3: return new MyFragment();                │
+  │         }                                                   │
+  │     }                                                       │
+  │ });                                                         │
+  │ viewPager.setUserInputEnabled(false); // 禁用左右滑动       │
+  └─────────────────────────────────────────────────────────────┘
+
+  Fragment 间通信方案：
+  - Fragment → MainActivity：通过 ((MainActivity)getActivity()).switchToTab()
+  - HomeFragment → CategoryFragment：通过 CategoryFragment.setPendingCategory()
+    静态方法传递 categoryId
+  - 其他 Activity → MainActivity 购物车角标：MainActivity.loadCartCountStatic()
+
+2.3 依赖库及选型理由
+
+  ┌─────────────┬─────────┬────────────────────────────────────┐
+  │ 库名         │ 版本     │ 为什么选择它                        │
+  ├─────────────┼─────────┼────────────────────────────────────┤
+  │ OkHttp       │ 4.9.3   │ 最流行的 Android HTTP 库，支持异步  │
+  │              │         │ 请求、拦截器、连接池；比 HttpURL-   │
+  │              │         │ Connection 更高效易用                │
+  ├─────────────┼─────────┼────────────────────────────────────┤
+  │ Gson         │ 2.10.1  │ Google 官方 JSON 库，通过反射自动   │
+  │              │         │ 映射 JSON ↔ Java 对象，比手动解析   │
+  │              │         │ 更安全、代码量更少                   │
+  ├─────────────┼─────────┼────────────────────────────────────┤
+  │ Glide        │ 4.12.0  │ 图片加载库标杆，支持内存+磁盘缓存、  │
+  │              │         │ 占位图、渐入动画、自动生命周期管理   │
+  ├─────────────┼─────────┼────────────────────────────────────┤
+  │ RecyclerView │ 1.3.2   │ 比 ListView 性能更好（强制 View-    │
+  │              │         │ Holder 模式），支持多种布局管理器     │
+  ├─────────────┼─────────┼────────────────────────────────────┤
+  │ ViewPager2   │ 内置     │ ViewPager 升级版，支持 RecyclerView │
+  │              │         │ 内部实现，支持垂直滑动和 Fragment    │
+  └─────────────┴─────────┴────────────────────────────────────┘
+
+2.4 网络层封装设计（HttpUtil.java）
+
+  为什么封装 HttpUtil：
+  - 避免每个 Activity 重复写 OkHttp 调用代码
+  - 统一管理 BASE_URL、Token 注入、超时设置
+  - 统一的异步回调接口，自动切回主线程
+  - 方便后续替换网络库（只改一处）
+
+  核心设计：
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ public class HttpUtil {                                      │
+  │     // 1. 单例 OkHttpClient（连接池复用）                      │
+  │     private static OkHttpClient client = new OkHttpClient    │
+  │         .Builder()                                           │
+  │         .connectTimeout(30, TimeUnit.SECONDS)                │
+  │         .readTimeout(30, TimeUnit.SECONDS)                   │
+  │         .build();                                            │
+  │                                                              │
+  │     // 2. 统一 Callback 接口                                  │
+  │     public interface HttpCallback<T> {                       │
+  │         void onSuccess(T data);  // 成功回调                  │
+  │         void onError(String error); // 失败回调               │
+  │     }                                                        │
+  │                                                              │
+  │     // 3. 自动注入 Token（从 SharedPreferences 读取）          │
+  │     private static String getToken() {                       │
+  │         SharedPreferences info = appContext                  │
+  │             .getSharedPreferences("info", MODE_PRIVATE);     │
+  │         return info.getString("token", "");                  │
+  │     }                                                        │
+  │                                                              │
+  │     // 4. 自动切回主线程（Handler(Looper.getMainLooper())）    │
+  │     //    所有回调通过 mainHandler.post() 回到 UI 线程        │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  提供了5种 HTTP 方法：
+  - get()          GET 请求（查询）
+  - postForm()     POST 表单（登录注册）
+  - postJson()     POST JSON（创建数据）
+  - put()          PUT 请求（更新数据）
+  - delete()       DELETE 请求（删除数据）
+
+  每种方法都自动：
+  ① 添加 token 请求头
+  ② 异步执行（enqueue）
+  ③ 回调切回主线程
+
+2.5 Token 认证机制
+  - 登录成功 → 服务器返回 token
+  - 存储到 SharedPreferences("info", "token")
+  - 每次请求自动从 SharedPreferences 读取并添加到 Header
+  - 退出登录 → 清除 SharedPreferences
+  - 未登录用户跳转 LoginActivity
+
+  为什么选 SharedPreferences：
+  - 适合存储少量键值对（如 token、用户配置）
+  - API 简单（getString/putString/apply）
+  - 不需要引入数据库依赖
+
+
+================================================================================
+三、核心功能详细实现（含代码分析）
+================================================================================
+
+3.1 首页（HomeFragment）—— 应用最复杂的页面
+
+  页面结构（纵向 ScrollView 内）：
+  ┌──────────────────────────────────┐
+  │ [☰] [    搜索框    ] [👤]        │ ← 青绿色搜索栏
+  ├──────────────────────────────────┤
+  │     轮播图 ViewPager2 (180dp)    │ ← 3秒自动轮播
+  ├──────────────────────────────────┤
+  │  分类网格 (每行4个，共2行)        │ ← 点击跳转分类Tab并选中
+  ├──────────────────────────────────┤
+  │  🆕 新品上线 (横向 GridView)     │
+  ├──────────────────────────────────┤
+  │  🔥 热门商品 (横向 GridView)     │
+  ├──────────────────────────────────┤
+  │  ⭐ 最新推荐 (横向 GridView)     │
+  └──────────────────────────────────┘
+
+  3.1.1 数据加载策略
+
+  首页数据来自两个接口：
+  (1) /index-infos → 一次性返回轮播图+新品+热销+推荐
+  (2) /categories → 返回分类列表
+
+  为什么要一次请求获取所有数据？
+  - 减少网络请求次数（6个数据源变成1个请求）
+  - 减少用户等待时间
+  - 后端 /index-infos 接口就是为首页设计的聚合接口
+
+  数据解析代码：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ HttpUtil.get("/index-infos", callback -> {                   │
+  │     JsonObject json = gson.fromJson(data, JsonObject.class); │
+  │     JsonObject dataObj = json.getAsJsonObject("data");      │
+  │                                                              │
+  │     // 轮播图                                                │
+  │     JsonArray carousels = dataObj.getAsJsonArray("carousels");│
+  │     for (int i = 0; i < carousels.size(); i++) {            │
+  │         String url = carousels.get(i).getAsJsonObject()      │
+  │             .get("carouselUrl").getAsString();               │
+  │         bannerUrls.add(url);                                 │
+  │     }                                                        │
+  │                                                              │
+  │     // 新品上线 (同理处理 hotGoodses, recommendGoodses)       │
+  │     JsonArray newGoods = dataObj.getAsJsonArray("newGoodses");│
+  │     for (int i = 0; i < newGoods.size(); i++) {             │
+  │         Goods goods = gson.fromJson(newGoods.get(i),         │
+  │             Goods.class);                                    │
+  │         newList.add(goods);                                  │
+  │     }                                                        │
+  │ });                                                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么用 JsonObject 手动解析而不是用 TypeToken？
+  - /index-infos 返回的结构（carousels/newGoodses/hotGoodses/recommendGoodses）
+    不是标准的 Result<List<Goods>> 格式
+  - 手动解析更灵活，可以按需提取不同字段
+
+  3.1.2 自动轮播实现
+
+  使用 Handler + Runnable 实现循环轮播：
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private Runnable bannerRunnable = () -> {                    │
+  │     int next = (vpBanner.getCurrentItem() + 1)               │
+  │                 % bannerUrls.size();    // 循环索引          │
+  │     vpBanner.setCurrentItem(next, true); // 平滑滚动         │
+  │     bannerHandler.postDelayed(this, 3000); // 3秒后再执行    │
+  │ };                                                           │
+  └─────────────────────────────────────────────────────────────┘
+
+  生命周期管理（防止内存泄漏和资源浪费）：
+  - onResume() → postDelayed 启动轮播
+  - onPause() → removeCallbacks 停止轮播
+  当用户离开首页（切换到其他Tab或App进入后台），轮播自动暂停；
+  回到首页时自动恢复。
+
+  3.1.3 ScrollView 嵌套 GridView 问题
+
+  问题描述：
+  首页 ScrollView 内放了4个 GridView（1个分类+3个商品板块）。
+  GridView 内部也有滚动能力，与 ScrollView 产生冲突，导致
+  GridView 只显示第一行，剩余内容被截断。
+
+  根本原因：
+  ScrollView 测量子 View 时给的 heightMeasureSpec 模式是 UNSPECIFIED
+  （无限高），但 GridView 在这个模式下只会计算一行的高度。
+
+  解决方案 —— 自定义 MyGridView：
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ public class MyGridView extends GridView {                   │
+  │     @Override                                                │
+  │     protected void onMeasure(int widthSpec, int heightSpec) {│
+  │         // 强制使用 AT_MOST 模式 + 极大值，让 GridView        │
+  │         // 认为可用空间"无穷大"，从而展开全部行                │
+  │         int expandSpec = MeasureSpec.makeMeasureSpec(        │
+  │             Integer.MAX_VALUE >> 2,  // 约 5亿像素            │
+  │             MeasureSpec.AT_MOST);    // 最多这么大            │
+  │         super.onMeasure(widthSpec, expandSpec);              │
+  │     }                                                        │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  注意事项：
+  - 此方案让 GridView 一次性渲染所有 item，不使用 View 复用
+  - 适用于首页这种固定少量商品（如每个板块10个以内）的场景
+  - 不适用于数据量大的列表（应该用 RecyclerView + NestedScrollView）
+
+  3.1.4 首页分类点击联动分类页
+
+  用户点击首页的分类图标后，不仅切换到分类 Tab，还要自动选中
+  对应的分类。
+
+  Fragment 间通信方案：
+  HomeFragment 点击时：
+    CategoryFragment.setPendingCategory(categoryId);
+    MainActivity.switchToTab(1);
+
+  CategoryFragment.onResume() 中：
+    if (pendingCategoryId != null) {
+        遍历 categoryList 找到匹配的元素
+        设置选中并加载商品
+        pendingCategoryId = null; // 清除标记
+    }
+
+  为什么不用 Intent/Bundle 传参？
+  - CategoryFragment 已经被 MainActivity 的 FragmentStateAdapter 管理
+  - 不能通过 new CategoryFragment() + setArguments() 来传参
+  - 静态变量是最简单的 Fragment 间通信方式（适合此类场景）
+
+3.2 分类页（CategoryFragment）—— 左右联动
+
+  布局结构：
+  ┌──────────┬──────────────────┐
+  │ 家电     │  ┌────┐ ┌────┐  │
+  │ 女装  ✓  │  │商品│ │商品│  │  ← 商品网格 (GridView, 2列)
+  │ 家具     │  └────┘ └────┘  │
+  │ 运动     │  ┌────┐ ┌────┐  │
+  │ ...      │  │商品│ │商品│  │
+  │          │  └────┘ └────┘  │
+  └──────────┴──────────────────┘
+   左侧 RecyclerView    右侧 GridView
+
+  联动逻辑：
+  - 左侧点击 → leftAdapter.setSelectedPosition(position) 高亮
+             → loadGoodsByCategory(categoryId, categoryName) 加载商品
+  - 首页跳转 → setPendingCategory(categoryId) → 自动选中
+
+  分类商品加载的适配方案：
+
+  后端 /search 接口的 goodsCategoryId 参数不生效，无法按分类ID
+  过滤商品。采用的变通方案：根据分类名称映射到不同搜索关键词。
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ switch (firstWord) {                                         │
+  │     case "家电": keyword = "手机"; break;                     │
+  │     case "女装": keyword = "T恤"; break;                      │
+  │     case "家具": keyword = "座椅"; break;                      │
+  │     case "运动": keyword = "耳机"; break;                      │
+  │     case "游戏": keyword = "小米"; break;                      │
+  │     case "美妆": keyword = "口红"; break;                      │
+  │     ...                                                      │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么这样做？
+  - 是后端 API 限制下的务实变通方案
+  - 每个分类至少能搜索到相关商品
+  - 代码中还保留了"双关键词合并"方案（注释掉的代码），可扩展
+
+3.3 商品详情（DetailActivity）+ 购物车红点
+
+  页面功能：
+  - 顶部：返回按钮 + 标题"商品详情"
+  - 中间：商品大图 (300dp) + 名称/简介/价格 + 详情描述
+  - 底部：购物车图标(红点角标) + 加入购物车(青绿) + 立即购买(红色)
+
+  3.3.1 购物车角标实现
+
+  角标使用 FrameLayout 包裹 ImageView + 红色小圆点 TextView：
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <FrameLayout>                                                │
+  │     <ImageView 购物车图标 30dp />                             │
+  │     <TextView  红点角标 14dp                                  │
+  │         layout_gravity="top|end"                             │
+  │         background="@drawable/bg_badge" (红色椭圆) />         │
+  │ </FrameLayout>                                               │
+  └─────────────────────────────────────────────────────────────┘
+
+  角标数据刷新：
+  - loadCartBadge() → GET /shop-cart → 计算列表大小 → 显示/隐藏
+  - onResume() 时自动刷新
+  - addToCart() 成功后刷新本页 + MainActivity 底部导航角标
+
+  3.3.2 "直接购买"流程
+
+  点击"立即购买"→ 加入购物车 → 跳转 CreateOrderActivity：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ buyNow() {                                                   │
+  │     POST /shop-cart (goodsId + count=1)                     │
+  │     → onSuccess:                                             │
+  │         Intent → CreateOrderActivity                         │
+  │         // CreateOrderActivity 会加载购物车全部商品创建订单   │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么"直接购买"是先加购物车再下单？
+  - /saveOrder 接口需要 cartItemIds 参数（购物车商品ID列表）
+  - 无法直接传 goodsId 创建订单
+  - 正确流程：加购物车 → 获取 cartItemId → 创建订单 → 支付
+
+3.4 购物车（CartFragment）
+
+  核心逻辑：
+
+  3.4.1 选中状态管理
+  - CartItem 包含一个本地字段 selected（不存储到服务器）
+  - 加载购物车时默认全部选中
+  - 全选 CheckBox 与单项 CheckBox 双向联动
+  - 只结算选中的商品
+  - 点击结算 → 跳转 CreateOrderActivity
+
+  3.4.2 全选联动（防递归调用）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ cbAll.setOnCheckedChangeListener((v, isChecked) -> {         │
+  │     for (CartItem item : cartList)                           │
+  │         item.setSelected(isChecked);                         │
+  │     cartAdapter.notifyDataSetChanged();                      │
+  │     updateTotal();                                           │
+  │ });                                                          │
+  │                                                              │
+  │ checkAllSelect() {  // 单项变化时更新全选框                    │
+  │     boolean allSelected = true;                              │
+  │     for (CartItem item : cartList)                           │
+  │         if (!item.isSelected()) { allSelected = false; break; }│
+  │     cbAll.setOnCheckedChangeListener(null);  // ★关键：先取消监听│
+  │     cbAll.setChecked(allSelected);           // 再设置状态    │
+  │     cbAll.setOnCheckedChangeListener(...);  // 恢复监听       │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么要先取消再设置再恢复？
+  - setChecked() 会触发 OnCheckedChangeListener
+  - 如果不取消，checkAllSelect() 设置全选→触发监听→又遍历设置
+    →又触发 checkAllSelect() → 无限递归
+  - 先置 null → 设值 → 恢复，是 Android 中处理此问题的标准做法
+
+  3.4.3 底部导航购物车红点
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ // MainActivity.java                                        │
+  │ BadgeDrawable cartBadge = bottomNav                          │
+  │     .getOrCreateBadge(R.id.nav_cart);                       │
+  │                                                              │
+  │ void updateCartBadge(int count) {                            │
+  │     if (count > 0) {                                        │
+  │         cartBadge.setVisible(true);                          │
+  │         cartBadge.setNumber(count);                          │
+  │     } else {                                                 │
+  │         cartBadge.setVisible(false);                         │
+  │     }                                                        │
+  │ }                                                            │
+  │                                                              │
+  │ // 静态方法供其他页面调用                                       │
+  │ static void loadCartCountStatic(Context context) {           │
+  │     if (instance != null) instance.loadCartCount();          │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么需要静态方法？
+  - DetailActivity 加购后、CartFragment 删除后，都需要刷新角标
+  - 这些页面没有 MainActivity 引用，通过静态实例中转
+
+3.5 订单系统 —— 最复杂的业务流程
+
+  订单完整流程：
+  购物车结算 → 创建订单 → 选择支付 → 订单状态流转 → 确认收货
+
+  3.5.1 订单创建（CreateOrderActivity）
+
+  步骤：
+  (1) 加载购物车数据 → 展示商品列表
+  (2) 选择收货地址 → startActivityForResult → 返回 addressId
+  (3) 提交订单 POST /saveOrder { addressId, cartItemIds }
+  (4) 服务器返回 orderNo（订单号） → 显示在页面
+  (5) 自动弹出支付选择对话框
+
+  关键代码：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ submitOrder() {                                              │
+  │     Map<String, Object> params = new HashMap<>();            │
+  │     params.put("addressId", selectedAddressId);  // Long     │
+  │     params.put("cartItemIds", cartItemIds);      // List<Long>│
+  │                                                              │
+  │     HttpUtil.postJson("/saveOrder", params, callback -> {    │
+  │         Result<String> result = parse(data);                │
+  │         if (result.isSuccess()) {                            │
+  │             String orderNo = result.getData();               │
+  │             showPayDialog(orderNo); // 弹出支付选择           │
+  │         }                                                    │
+  │     });                                                      │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么用 Map<String, Object> 而不是 POJO？
+  - cartItemIds 是动态数组，POJO 需要额外定义内部类
+  - Map 更灵活，Gson 自动序列化为 JSON 对象
+
+  3.5.2 支付实现
+
+  支付对话框 (dialog_pay.xml)：
+  ┌──────────────────────────────────┐
+  │      选择支付方式                  │
+  │                                  │
+  │  ┌────────────────────────┐     │
+  │  │    💚 微信支付 (绿色)   │     │  ← 点击 → payOrder(orderNo, 1)
+  │  └────────────────────────┘     │
+  │  ┌────────────────────────┐     │
+  │  │    💙 支付宝   (蓝色)   │     │  ← 点击 → payOrder(orderNo, 2)
+  │  └────────────────────────┘     │
+  └──────────────────────────────────┘
+
+  支付API：
+    GET /paySuccess?orderNo=xxx&payType=x
+    payType: 1=微信支付, 2=支付宝
+
+  响应处理：
+  - 成功 → 跳转 OrderListActivity(status=2 待发货)
+  - 失败 → 跳转 OrderListActivity(status=0 待支付)，可重试
+
+  3.5.3 订单列表（OrderListActivity）
+
+  Tab 结构（共6个）：
+  ┌──────┬────────┬────────┬────────┬────────┬────────┐
+  │ 全部  │ 待支付  │ 待确认  │ 待发货  │ 待收货  │ 已完成  │
+  │ -1   │   0     │   1     │   2     │   3     │   4    │
+  └──────┴────────┴────────┴────────┴────────┴────────┘
+
+  订单状态按钮逻辑（OrderAdapter）：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ switch (order.getOrderStatus()) {                            │
+  │     case 0: // 待支付                                        │
+  │         btnAction.setText("立即支付");                        │
+  │         btnAction.setOnClickListener(v -> showPayDialog());  │
+  │         break;                                               │
+  │     case 3: // 待收货                                        │
+  │         btnAction.setText("确认收货");                        │
+  │         btnAction.setOnClickListener(v -> finishOrder());    │
+  │         break;                                               │
+  │     default: // 待确认(1)待发货(2)已完成(4)                   │
+  │         btnAction.setVisibility(GONE);  // 无操作按钮         │
+  │         break;                                               │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么待确认(1)和待发货(2)没有操作按钮？
+  - 待确认→待发货：需要管理员在后台确认付款，客户端无此权限
+  - 待发货→待收货：需要管理员录入物流信息，客户端无此接口
+  这些状态转换是服务端/管理员操作，客户端只显示当前状态。
+
+  确认收货实现：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ finishOrder(order, holder) {                                 │
+  │     PUT /order/{orderNo}/finish  (传空body)                  │
+  │     → 成功: order.setOrderStatus(4)  // 改为已完成            │
+  │            holder.tvAction.setVisibility(GONE)               │
+  │            notifyStatusChanged()                             │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+3.6 地址管理 —— 省市区三级联动
+
+  3.6.1 数据结构设计
+
+  RegionData.java 采用嵌套静态类表示层级关系：
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ public class RegionData {                                    │
+  │     public static class City {                               │
+  │         String name;             // 城市名                    │
+  │         List<String> districts;  // 区县列表                  │
+  │     }                                                        │
+  │                                                              │
+  │     public static class Province {                           │
+  │         String name;             // 省份名                    │
+  │         List<City> cities;       // 下属城市列表              │
+  │     }                                                        │
+  │                                                              │
+  │     static List<Province> PROVINCES = Arrays.asList(         │
+  │         new Province("广东省",                                │
+  │             new City("广州市", "天河区","越秀区","海珠区"...), │
+  │             new City("深圳市", "南山区","福田区","罗湖区"...)  │
+  │         ),                                                   │
+  │         ...                                                  │
+  │     );                                                       │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么硬编码数据而不是请求后端接口？
+  - 实训环境后端没有提供省市区查询接口
+  - 省市区数据相对固定，31个省份的数据量完全可以在代码中维护
+  - 减少网络请求依赖，选择器响应更快
+
+  3.6.2 三级联动实现
+
+  对话框布局 (dialog_region_picker.xml)：三栏 ListView 并排
+
+  联动逻辑：
+  - 点击省份 → 更新 selectedProvince → refreshCityList() → refreshDistrictList()
+  - 点击城市 → 更新 selectedCity → refreshDistrictList()
+  - 点击区县 → 更新 selectedDistrict
+  - 确认 → 拼接 "省 市 区" → 设置到 tvRegion
+
+  选中项高亮实现（自定义 ArrayAdapter.getView）：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ new ArrayAdapter<String>(...) {                              │
+  │     public View getView(int pos, View v, ViewGroup p) {      │
+  │         TextView tv = (TextView) super.getView(pos, v, p);    │
+  │         if (pos == selectedPosition) {                       │
+  │             tv.setBackgroundColor(Color.WHITE);   // 白底    │
+  │             tv.setTextColor(Color.RED);          // 红字    │
+  │         } else {                                             │
+  │             tv.setBackgroundColor(Color.TRANSPARENT);        │
+  │             tv.setTextColor(Color.DKGRAY);       // 灰字    │
+  │         }                                                    │
+  │         return tv;                                           │
+  │     }                                                        │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  3.6.3 地址保存数据拆分
+
+  选择器显示"广东省 广州市 天河区"，保存时需要拆分为三个独立字段：
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ String[] parts = region.split("\\s+");  // 按空格拆分        │
+  │ params.put("provinceName", parts[0]);   // "广东省"          │
+  │ params.put("cityName",     parts[1]);   // "广州市"          │
+  │ params.put("regionName",   parts[2]);   // "天河区"          │
+  └─────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+四、API 接口设计
+================================================================================
+
+4.1 接口总览（19个接口，5个模块）
+
+  BASE_URL = http://172.30.130.131:28019/mallapi/api/v1
+
+  用户模块：
+    POST /user/login         → 登录（MD5密码）
+    POST /user/register      → 注册
+    GET  /user/info          → 获取用户信息
+
+  商品模块：
+    GET /index-infos         → 首页聚合数据
+    GET /categories          → 商品分类列表
+    GET /goods/detail/{id}   → 商品详情
+    GET /search?keyword=&orderBy=&pageNumber=  → 搜索商品
+
+  购物车模块：
+    GET    /shop-cart        → 获取购物车列表
+    POST   /shop-cart        → 添加商品 {goodsId, goodsCount}
+    POST   /shop-cart/update → 修改数量 {cartItemId, goodsCount}
+    DELETE /shop-cart/{id}   → 删除商品
+
+  订单模块：
+    POST /saveOrder          → 创建订单 {addressId, cartItemIds}
+    GET  /order?pageNumber=1&status=  → 查询订单
+    GET  /paySuccess?orderNo=&payType= → 模拟支付
+    PUT  /order/{orderNo}/finish → 确认收货
+
+  地址模块：
+    GET    /address          → 地址列表
+    POST   /address          → 新增地址
+    PUT    /address          → 修改地址
+    DELETE /address/{id}     → 删除地址
+    GET    /address/{id}     → 获取单个地址
+
+4.2 统一响应格式
+
+  所有接口返回统一的 JSON 结构：
+  {
+    "resultCode": 200,     // 200=成功
+    "message": "success",
+    "data": { ... }        // 不同类型的业务数据
+  }
+
+  对应的 Java 泛型类：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ public class Result<T> {                                     │
+  │     private int resultCode;                                  │
+  │     private String message;                                  │
+  │     private T data;                                          │
+  │     public boolean isSuccess() {                             │
+  │         return resultCode == 200;                            │
+  │     }                                                        │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  解析代码模式（Gson + TypeToken 泛型）：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ Type type = new TypeToken<Result<List<Order>>>(){}.getType();│
+  │ Result<List<Order>> result = gson.fromJson(json, type);      │
+  │ if (result != null && result.isSuccess()) {                  │
+  │     List<Order> orders = result.getData();                   │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  TypeToken 的作用：
+  - Java 泛型在编译后会被擦除（List<Order> 变成 List）
+  - Gson 不知道具体类型就无法正确反序列化
+  - TypeToken 通过匿名内部类保留了泛型信息，Gson 可以正确解析
+
+
+================================================================================
+五、关键技术难点与解决方案（含调试过程）
+================================================================================
+
+5.1 ScrollView 嵌套 GridView —— 高度计算问题
+
+  问题：首页 GridView 在 ScrollView 中只显示一行
+  原因：ScrollView 给子 View 传递的 MeasureSpec 是 UNSPECIFIED，
+        GridView 在此模式下只计算一行
+  解决：自定义 MyGridView 强制 AT_MOST 模式
+  影响：GridView 不回收 View，只适合小数据量
+
+  详细代码见 3.1.3 节。
+
+5.2 红点角标被裁剪
+
+  问题：使用 layout_marginTop="-4dp" 将红点定位到图标右上角时，
+        红点的上部和右部被父布局裁剪
+  原因：Android ViewGroup 默认 clipChildren=true，超出边界的部分被裁掉
+
+  第一次尝试：给所有父布局设置 clipChildren=false
+  → 部分生效但仍被裁剪
+
+  最终方案：改变布局结构
+  - FrameLayout 改为 36dp×36dp（大于 30dp 图标）
+  - 图标 bottom|start 对齐
+  - 红点 top|end 对齐
+  - 红点完全在 FrameLayout 范围内，不需要负边距
+
+  关键代码：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <FrameLayout 36dp x 36dp>                                   │
+  │     <ImageView 30dp  layout_gravity="bottom|start" />       │
+  │     <TextView  14dp  layout_gravity="top|end"               │
+  │         background="@drawable/bg_badge" />                  │
+  │ </FrameLayout>                                              │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么最终方案更好？
+  - 不依赖 clipChildren=false（有些设备/ROM 可能不生效）
+  - 红点始终在容器边界内，布局更可靠
+  - 不产生 overdraw 问题
+
+5.3 支付接口调试 —— 经典 Bug 排查案例
+
+  问题：调用 /paySuccess?orderNo=xxx 返回 500 错误
+
+  排查步骤：
+  Step 1: 查看 Logcat 日志 → 确认请求 URL 正确
+  Step 2: 用浏览器访问 Swagger 文档 → 发现接口还需要 payType 参数
+  Step 3: curl 测试完整参数 → 返回成功
+  Step 4: 修改代码 URL 为 /paySuccess?orderNo=xxx&payType=x → 成功
+
+  教训：
+  - API 文档是第一手资料，遇到 500 先查文档
+  - curl 是 API 调试利器，排除客户端代码问题
+  - 必填参数缺失是常见的 500 原因
+
+5.4 Emoji 不响应 textColor
+
+  问题：👤 emoji 设置 textColor="#FFFFFF" 后仍然显示为彩色
+  原因：部分 emoji 是彩色字符（multi-color glyph），Android 的
+        textColor 只对单色文字生效，无法覆盖 emoji 内部颜色
+  解决：改用 ImageView + Vector Drawable + android:tint="#FFFFFF"
+  影响因素：不同 Android 版本和 OEM 对 emoji 的渲染不一致
+
+5.5 Fragment 间通信 —— 首页分类跳转
+
+  问题：首页点击分类图标→跳转分类Tab→需要自动选中对应分类
+  难点：CategoryFragment 由 FragmentStateAdapter 管理，不能 new 出来传参
+
+  方案对比：
+  (1) Intent/Bundle → MainActivity → CategoryFragment ❌
+      不能直接传参给已被 Adapter 管理的 Fragment
+  (2) EventBus/RxBus → 需要引入额外库 ❌
+      过度设计
+  (3) 静态变量 pendingCategoryId → CategoryFragment 检测 ✓
+      简单直接，适合当前场景
+
+  实现：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ // HomeFragment                                              │
+  │ CategoryFragment.setPendingCategory(categoryId);             │
+  │ mainActivity.switchToTab(1);                                 │
+  │                                                              │
+  │ // CategoryFragment.onResume()                               │
+  │ if (pendingCategoryId != null) {                             │
+  │     找到匹配的分类 → 选中 → loadGoodsByCategory               │
+  │     pendingCategoryId = null;                                │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+5.6 全选 CheckBox 防递归
+
+  问题：全选 CheckBox 设置状态触发监听，监听又设置状态 → 递归
+  解决：设置状态前先 setOnCheckedChangeListener(null)，设置后恢复
+  这是 Android 开发中处理 CheckBox 联动的经典模式
+
+5.7 API 不返回分类商品的问题
+
+  问题：/search 接口的 goodsCategoryId 参数无效
+  影响：分类页无法按分类ID获取商品
+  方案：按分类名映射到不同搜索关键词（switch-case 方案）
+  代码中保留了双关键词合并搜索的备用方案（注释代码）
+
+
+================================================================================
+六、UI/UX 设计体系
+================================================================================
+
+6.1 色彩方案（设计系统）
+  - 主色 #00C9A7（青绿色）→ 标题栏、搜索栏、按钮、启动页
+  - 价格红 #FF0000 → 价格文字、角标红点
+  - 背景灰 #F5F5F5 → 全局背景
+  - 卡片白 #FFFFFF → 内容区域
+  - 支付绿 #09BB07 → 微信支付按钮
+  - 支付蓝 #1677FF → 支付宝按钮
+  - 保存橙 bg_button_orange → 保存、登录按钮
+
+6.2 矢量图标系统（30+ 自定义 Vector Drawable）
+
+  底部导航（4个）：
+    ic_home.xml     🏠 房子    → 首页
+    ic_category.xml ⊞ 九宫格  → 分类
+    ic_cart.xml     🛒 购物车  → 购物车
+    ic_my.xml       👤 人物    → 我的
+
+  我的订单（6个）：
+    ic_order_all.xml     📋 清单   → 全部订单
+    ic_order_pay.xml     💳 银行卡 → 待支付
+    ic_order_confirm.xml ✅ 打勾圈 → 待确认
+    ic_order_deliver.xml 🚚 卡车   → 待发货
+    ic_order_receive.xml 📦 包裹   → 待收货
+    ic_order_done.xml    ✅ 实心勾 → 已完成
+
+  功能入口（3个）：
+    ic_address.xml  📍 定位 → 地址管理
+    ic_about.xml    ⓘ 信息 → 关于我们
+    ic_logout.xml   🚪 退出 → 退出登录
+
+  分类图标（9个，各带主题色）：
+    ic_cat_elec.xml      橙色 🖥 TV     → 家电
+    ic_cat_clothes.xml    粉色 👕 T恤    → 女装
+    ic_cat_furniture.xml  棕色 🛏 床     → 家具
+    ic_cat_sport.xml      绿色 🏋 哑铃   → 运动
+    ic_cat_game.xml       紫色 🎮 手柄   → 游戏
+    ic_cat_beauty.xml     玫红 ♥ 爱心   → 美妆
+    ic_cat_tool.xml       蓝灰 🔧 扳手   → 工具
+    ic_cat_shoes.xml      蓝色 👟 鞋     → 鞋靴
+    ic_cat_toy.xml        橙色 🧩 拼图   → 玩具
+
+  App 品牌图标：
+    ic_launcher_foreground.xml → 青绿底 + 金色蜜蜂 + 购物袋
+    ic_bee_cart.xml            → 启动页蜜蜂手推购物车
+
+6.3 红点角标体系
+
+  三层角标设计：
+  (1) 底部导航购物车 → Material BadgeDrawable（数字角标）
+  (2) 详情页购物车 → FrameLayout + bg_badge（数字角标）
+  (3) 我的页订单 → FrameLayout + bg_badge（数字角标）
+
+  统一使用 bg_badge.xml（红色椭圆）：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <shape android:shape="oval">                                │
+  │     <solid android:color="#FF0000" />                       │
+  │ </shape>                                                    │
+  └─────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+七、项目数据统计
+================================================================================
+
+  Java 源文件：    31 个（Activity 10 + Fragment 4 + Adapter 9 + Model 9 + Util 3 + Widget 1）
+  XML 布局文件：   24 个
+  Vector 矢量图：  35+ 个
+  API 接口对接：   19 个
+  总代码量：       约 3,500+ 行 Java + 2,000+ 行 XML
+  Git 提交次数：   30+ 次
+
+  页面统计：
+    10 个 Activity（Splash/Main/Login/Search/Detail/CreateOrder/
+                   OrderList/AddressList/AddressEdit/About）
+    4 个 Fragment（Home/Category/Cart/My）
+    9 个 Adapter + ViewHolder
+
+
+================================================================================
+八、开发过程与版本管理
+================================================================================
+
+8.1 开发阶段
+
+  阶段1：项目初始化
+    - 创建 Android 项目，配置 Gradle 依赖
+    - 搭建 OkHttp + Gson 网络层
+    - 搭建 ViewPager2 + BottomNav 主框架
+
+  阶段2：核心功能开发
+    - 登录注册（SharedPreferences Token 管理）
+    - 首页（轮播图 + 分类 + 三大商品板块）
+    - 分类页（左右联动）
+    - 商品详情（加购 + 购买）
+
+  阶段3：交易流程开发
+    - 购物车（选择 + 数量管理 + 结算）
+    - 订单系统（创建 + 支付 + 状态流转 + 收货确认）
+    - 地址管理（CRUD + 省市区选择器）
+
+  阶段4：UI/UX 优化
+    - 30+ 矢量图标设计
+    - 红点角标系统
+    - 颜色体系统一
+    - 布局对齐修复
+    - 分类图标迭代（emoji→矢量图→精细调整）
+
+  阶段5：品牌设计
+    - App 图标设计（蜜蜂+购物袋）
+    - 启动页设计（蜜蜂推购物车）
+
+  阶段6：文档与交付
+    - README.md
+    - 答辩材料撰写
+    - Git 仓库推送
+
+8.2 Git 提交记录精选
+
+  ┌──────────┬──────────────────────────────────────────────┐
+  │ 提交信息   │ 内容说明                                      │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ 7cf2b32   │ Initial commit: 新蜂商城 Android App (103文件) │
+  │ fd26dca   │ docs: 添加项目 README 文档                    │
+  │ 9ab60da   │ feat: 分类界面添加标题栏                        │
+  │ e8e5081   │ feat: 首页分类点击自动跳转并选中                │
+  │ d96efad   │ fix: 我的订单6个图标统一结构对齐               │
+  │ 6b0a2c0   │ fix: 地址保存参数类型修正                      │
+  │ b47277e   │ feat: 地址管理省市区三级联动选择器              │
+  │ db36db3   │ style: 首页搜索栏青绿色背景                    │
+  │ e380304   │ feat: 设计App图标和启动页                      │
+  │ 2635be1   │ feat: 启动页蜜蜂手推购物车，更可爱更品牌化      │
+  │ 7043c74   │ docs: 添加详细项目答辩材料                      │
+  └──────────┴──────────────────────────────────────────────┘
+
+
+================================================================================
+九、总结与展望
+================================================================================
+
+9.1 技术收获
+  (1) OkHttp 网络编程：
+      - 掌握了 GET/POST/PUT/DELETE 四种请求方式
+      - 理解了异步回调（enqueue）和主线程切换（Handler）
+      - 学会了 Token 认证的实现方式
+
+  (2) Gson JSON 解析：
+      - 理解了 Java 泛型擦除问题
+      - 掌握了 TypeToken 处理泛型集合的方法
+      - 学会了 JsonObject 手动解析灵活数据
+
+  (3) Android UI 开发：
+      - 掌握了 ScrollView 嵌套 GridView 的解决方案
+      - 学会了 Fragment 间多种通信方式
+      - 理解了 ViewPager2 的 Fragment 缓存机制
+
+  (4) Android Vector Drawable：
+      - 学会了使用 SVG path 数据创建矢量图标
+      - 理解了 tint 颜色覆盖机制
+      - 设计了完整的 App 图标系统
+
+  (5) 调试能力：
+      - 学会了用 curl 调试 REST API
+      - 掌握了 Logcat 日志分析
+      - 积累了 500 错误的排查经验
+
+9.2 可优化方向
+
+  架构层面：
+  - 引入 MVVM 架构（ViewModel + LiveData）
+  - 使用 DataBinding 减少 findViewById 样板代码
+  - 引入依赖注入（Hilt/Dagger）管理依赖
+
+  功能层面：
+  - 下拉刷新（SwipeRefreshLayout）
+  - 上拉加载更多（分页优化）
+  - 商品详情图片轮播
+  - 商品收藏功能
+  - 订单物流跟踪（接入快递 API）
+
+  性能层面：
+  - RecyclerView 替代 GridView（首页）
+  - 图片压缩和缩略图策略
+  - 网络请求缓存（OkHttp Cache）
+  - 离线数据缓存（Room 数据库）
+
+  代码质量：
+  - Kotlin 迁移（更简洁、空安全）
+  - 单元测试（JUnit + Mockito）
+  - UI 自动化测试（Espresso）
+
+9.3 项目总结
+
+  本项目实现了完整的电商 App 功能闭环：
+  用户登录 → 浏览商品 → 加入购物车 → 创建订单 → 选择支付 → 确认收货
+
+  通过本项目实训，掌握了 Android 原生开发的核心技术栈，理解了
+  客户端-服务端协作的完整流程，积累了实际项目开发经验。
 
 ================================================================================
                            文档编写日期：2026年6月
