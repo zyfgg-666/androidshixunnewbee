@@ -1,0 +1,958 @@
+================================================================================
+                   新蜂商城 首页 完整实现详解
+================================================================================
+
+目录：
+  一、页面整体结构
+  二、布局文件逐层解析（fragment_home.xml）
+  三、Java代码逐方法分析（HomeFragment.java）
+  四、搜索栏区域
+  五、轮播图（Banner）
+  六、快捷入口
+  七、分类网格
+  八、商品板块（新品上线/热门商品/最新推荐）
+  九、数据加载流程
+  十、自定义 MyGridView
+  十一、涉及的适配器和布局文件
+  十二、技术难点与解决方案
+
+
+================================================================================
+一、页面整体结构
+================================================================================
+
+1.1 首页在视觉上从上到下分为以下几个区域：
+
+  ┌──────────────────────────────────────────┐
+  │ [☰]     [🔍 搜索商品   ]    [👤]        │  搜索栏（青绿色背景）
+  ├──────────────────────────────────────────┤
+  │                                          │
+  │          轮播图 ViewPager2               │  高 180dp，自动3秒轮播
+  │                                          │
+  ├──────────────────────────────────────────┤
+  │  🛒新蜂超市  👗新蜂服饰  🌍全球购  ...   │  快捷入口第一行（5个图标）
+  ├──────────────────────────────────────────┤
+  │  💰充值缴费 9️⃣9.9元拼  🎫领券  ...      │  快捷入口第二行（5个图标）
+  ├──────────────────────────────────────────┤
+  │  分类                                    │  标题
+  │  ┌────┬────┬────┬────┐                  │
+  │  │家电│女装│家具│运动│                  │  分类网格（MyGridView，4列）
+  │  │游戏│美妆│工具│鞋靴│                  │  点击跳转分类Tab并自动选中
+  │  └────┴────┴────┴────┘                  │
+  ├──────────────────────────────────────────┤
+  │  🆕 新品上线                             │  标题
+  │  ┌──────────┬──────────┐                │
+  │  │  商品1   │  商品2   │                │  商品网格（MyGridView，2列）
+  │  └──────────┴──────────┘                │
+  ├──────────────────────────────────────────┤
+  │  🔥 热门商品                             │  标题
+  │  ┌──────────┬──────────┐                │
+  │  │  商品1   │  商品2   │                │  商品网格（MyGridView，2列）
+  │  └──────────┴──────────┘                │
+  ├──────────────────────────────────────────┤
+  │  ⭐ 最新推荐                             │  标题
+  │  ┌──────────┬──────────┐                │
+  │  │  商品1   │  商品2   │                │  商品网格（MyGridView，2列）
+  │  └──────────┴──────────┘                │
+  └──────────────────────────────────────────┘
+
+1.2 架构设计分析
+
+  问题：首页有5个需要滚动的区域（轮播图可以不算，但4个GridView都需要
+        展开显示），如果用普通 LinearLayout，超出屏幕的部分无法滚动查看。
+
+  方案：用 ScrollView 包裹整个内容。ScrollView 内部只能有一个直接子元素，
+        所以用一个纵向 LinearLayout 作为容器，把各个区域依次放入。
+
+
+================================================================================
+二、布局文件逐层解析（fragment_home.xml）
+================================================================================
+
+  文件路径：app/src/main/res/layout/fragment_home.xml
+  总行数：415行
+  根布局：ScrollView
+  直接子元素：LinearLayout（纵向）
+  自定义控件：MyGridView（4个）
+
+2.1 根布局 ScrollView
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <ScrollView                                                  │
+  │     android:layout_width="match_parent"                     │
+  │     android:layout_height="match_parent"                    │
+  │     android:background="#F5F5F5"          ← 全局浅灰色背景    │
+  │     android:fillViewport="true">          ← ★关键属性        │
+  │                                                              │
+  │     <LinearLayout                                            │
+  │         android:orientation="vertical">                     │
+  │         ...所有内容区域...                                     │
+  │     </LinearLayout>                                          │
+  │ </ScrollView>                                                │
+  └─────────────────────────────────────────────────────────────┘
+
+  fillViewport="true" 的作用：
+    当 ScrollView 的内容不够高时（比如商品还没加载），此属性让子布局
+    填满整个 ScrollView 的高度，避免内容悬浮在上半部分。
+
+2.2 搜索栏区域（第13-74行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <LinearLayout  搜索栏外框                                    │
+  │     android:background="#00C9A7"      ← 青绿色背景（与全局   │
+  │     android:layout_height="44dp"          标题栏统一色系）   │
+  │     android:paddingTop="8dp"                               │
+  │     android:paddingBottom="8dp"                             │
+  │     android:paddingStart="10dp"                             │
+  │     android:paddingEnd="10dp">                              │
+  │                                                              │
+  │     ├── TextView  tv_menu                                   │
+  │     │   text="☰"  textColor="#FFFFFF"  textSize="22sp"     │
+  │     │   功能：点击切换到分类Tab                                │
+  │     │                                                       │
+  │     ├── LinearLayout  ll_search（搜索框容器）                │
+  │     │   background="@drawable/bg_search"  ← 白色圆角背景      │
+  │     │   │                                                   │
+  │     │   ├── ImageView  src="ic_menu_search"  ← 搜索图标      │
+  │     │   └── TextView   text="搜索商品"  textColor="#999999"  │
+  │     │                                                       │
+  │     └── ImageView  tv_my_center                             │
+  │         src="@drawable/ic_my"  tint="#FFFFFF"  ← 用户图标    │
+  │         功能：点击切换到"我的"Tab                               │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么搜索框用 LinearLayout 而不是 EditText？
+    搜索栏是一个"伪搜索框"——点击后跳转到独立的 SearchActivity，
+    而不是在当前页面展开输入。使用 LinearLayout + ImageView + TextView
+    模拟搜索框外观，用户体验更轻量。点击时不需要弹出键盘。
+
+2.3 轮播图区域（第76-82行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <ViewPager2                                                  │
+  │     android:id="@+id/vp_banner"                             │
+  │     android:layout_height="180dp"     ← 固定高度             │
+  │     android:layout_marginStart="10dp"                       │
+  │     android:layout_marginEnd="10dp" />                      │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么用固定高度180dp而不是wrap_content？
+    ViewPager2 本身不知道内容（图片）的高度，如果设置 wrap_content
+    可能显示为0或很小。固定高度确保无论图片原始尺寸如何，轮播图区域
+    都能正常显示。180dp 是移动端轮播图的常见高度。
+
+2.4 快捷入口（第84-331行）
+
+  结构：两个横向 LinearLayout，每个包含5个子项，每项 layout_weight="1"。
+
+  每个子项：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <LinearLayout  width="0dp"  weight="1"  gravity="center">   │
+  │     <TextView   35dp×35dp  背景色="#00C9A7"  emoji图标 />    │
+  │     <TextView   文字描述   textSize="10sp"  marginTop="3dp"/> │
+  │ </LinearLayout>                                              │
+  └─────────────────────────────────────────────────────────────┘
+
+  第一行（5个）：🛒新蜂超市  👗新蜂服饰  🌍全球购  🥬新蜂生鲜  🏠新蜂到家
+  第二行（5个）：💰充值缴费 9️⃣9.9元拼  🎫领券      💎省钱       📋全部
+
+  这些是"仿快捷入口"——视觉上像功能入口，实际没有功能按钮跳转。
+  主要作用是填充页面，让首页更丰富。
+
+2.5 分类网格（第333-351行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <TextView  text="分类"  textStyle="bold"  16sp />            │
+  │                                                              │
+  │ <com.example.newbee2.widget.MyGridView                      │
+  │     android:id="@+id/gv_category"                           │
+  │     android:numColumns="4"            ← 4列                  │
+  │     android:horizontalSpacing="10dp"                        │
+  │     android:verticalSpacing="10dp" />                       │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么用 GridView 而不是 RecyclerView？
+    因为分类放在 ScrollView 内部。RecyclerView 在 ScrollView 中同样
+    有高度计算问题。GridView 配合自定义 MyGridView（重写 onMeasure）
+    可以完美展开。分类数量固定（约10个），不需要 RecyclerView 的回收复用。
+
+  为什么4列？
+    分类包括家电/女装/家具/运动/游戏/美妆/工具/鞋靴/玩具等，共约9-10个。
+    4列×3行=12个位置，刚好放完且留有余量。
+
+2.6 商品板块（第353-412行）
+
+  三个板块结构完全相同，以"新品上线"为例：
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <TextView  text="🆕 新品上线"  textStyle="bold"  16sp />     │
+  │                                                              │
+  │ <com.example.newbee2.widget.MyGridView                      │
+  │     android:id="@+id/gv_new"                                │
+  │     android:numColumns="2"            ← 2列                  │
+  │     android:horizontalSpacing="10dp"                        │
+  │     android:verticalSpacing="10dp" />                       │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么用2列？
+    商品有封面图（150dp高），2列可以让每张图足够大，用户能看清商品。
+    电商 App 商品列表通常采用2列布局（如淘宝、京东的推荐板块）。
+
+
+================================================================================
+三、Java代码逐方法分析（HomeFragment.java）
+================================================================================
+
+  文件路径：app/src/main/java/com/example/newbee2/fragment/HomeFragment.java
+  总行数：298行
+  继承关系：public class HomeFragment extends Fragment
+
+3.1 成员变量（第42-55行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ // View层                                                     │
+  │ private ViewPager2 vpBanner;          // 轮播图              │
+  │ private MyGridView gvCategory;         // 分类网格           │
+  │ private MyGridView gvNew, gvHot, gvLatest; // 三个商品板块   │
+  │ private LinearLayout llSearch;         // 搜索栏(点击区域)    │
+  │                                                              │
+  │ // 适配器层                                                   │
+  │ private GoodsAdapter newAdapter, hotAdapter, latestAdapter;  │
+  │ private CategoryGridAdapter categoryGridAdapter;             │
+  │ private BannerAdapter bannerAdapter;                         │
+  │                                                              │
+  │ // 数据层                                                     │
+  │ private List<Goods> newList, hotList, latestList;            │
+  │ private List<Category> categoryList;                         │
+  │ private List<String> bannerUrls;       // 轮播图URL列表       │
+  │                                                              │
+  │ // 自动轮播控制                                                │
+  │ private Handler bannerHandler = new Handler();               │
+  │ private Runnable bannerRunnable;                             │
+  │ private static final long BANNER_DELAY = 3000; // 3秒间隔    │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么每个板块各自维护独立的 List 和 Adapter？
+    - 新品上线、热门商品、最新推荐三组数据来自不同接口字段
+    - 各自独立便于分别刷新，互不影响
+    - 用户可能快速切换Tab，独立 List 避免数据混淆
+
+3.2 onCreateView（第59-62行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ public View onCreateView(LayoutInflater inflater,            │
+  │         ViewGroup container, Bundle savedInstanceState) {    │
+  │     return inflater.inflate(R.layout.fragment_home,          │
+  │             container, false);                              │
+  │     //                          ↑ false表示不附加到container │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么第三个参数传 false？
+    Fragment 的布局由系统自动添加到 container，如果传 true 会导致
+    重复添加。这是所有 Fragment 的标准写法。
+
+3.3 onViewCreated（第64-147行）—— 核心初始化方法
+
+  Fragment 的生命周期：onCreateView（创建View）→ onViewCreated（View已创建）
+  onViewCreated 中 findViewById 才是安全的。
+
+3.3.1 控件绑定（第68-73行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ vpBanner = view.findViewById(R.id.vp_banner);              │
+  │ gvCategory = (MyGridView) view.findViewById(R.id.gv_category);│
+  │ //        ↑ 需要强转为 MyGridView，因为XML中用的是自定义类     │
+  │ llSearch = view.findViewById(R.id.ll_search);              │
+  └─────────────────────────────────────────────────────────────┘
+
+3.3.2 搜索栏点击处理（第76-82行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ llSearch.setOnClickListener(v -> {                           │
+  │     if (isLogin()) {                                         │
+  │         // 已登录：跳转搜索页                                  │
+  │         startActivity(new Intent(getActivity(),              │
+  │                 SearchActivity.class));                     │
+  │     } else {                                                 │
+  │         // 未登录：跳转登录页                                  │
+  │         startActivity(new Intent(getActivity(),              │
+  │                 LoginActivity.class));                      │
+  │     }                                                        │
+  │ });                                                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么要判断登录状态？
+    搜索和购物车等功能需要 Token 认证，未登录时直接去登录页。
+    这是电商 App 的标准体验——浏览可以，操作需要登录。
+
+3.3.3 个人中心和菜单按钮（第85-96行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ // 个人中心 → 切换到Tab 3（"我的"）                            │
+  │ view.findViewById(R.id.tv_my_center).setOnClickListener(     │
+  │     v -> ((MainActivity) getActivity()).switchToTab(3));     │
+  │                                                              │
+  │ // 菜单(☰) → 切换到Tab 1（"分类"）                            │
+  │ view.findViewById(R.id.tv_menu).setOnClickListener(          │
+  │     v -> ((MainActivity) getActivity()).switchToTab(1));     │
+  └─────────────────────────────────────────────────────────────┘
+
+  这里的通信方式：
+    HomeFragment → MainActivity.switchToTab(N)
+    MainActivity → ViewPager2.setCurrentItem(N, false)
+
+  这是 Fragment 与其宿主 Activity 通信的标准方式——通过强制类型转换
+  获取 Activity 引用，调用公开方法。
+
+3.3.4 初始化适配器（第98-113行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ // 商品适配器（三个板块共用 GoodsAdapter 类）                  │
+  │ newAdapter = new GoodsAdapter(getActivity(), newList);       │
+  │ gvNew.setAdapter(newAdapter);                                │
+  │                                                              │
+  │ // 分类适配器（网格展示，4列）                                  │
+  │ categoryGridAdapter = new CategoryGridAdapter(               │
+  │         getActivity(), categoryList);                       │
+  │ gvCategory.setAdapter(categoryGridAdapter);                  │
+  │                                                              │
+  │ // 轮播图适配器                                               │
+  │ bannerAdapter = new BannerAdapter(bannerUrls);               │
+  │ vpBanner.setAdapter(bannerAdapter);                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  GoodsAdapter 被 newAdapter/hotAdapter/latestAdapter 三个实例共享
+  同一个类。每个实例持有不同的 List 引用，所以数据是隔离的。
+
+3.3.5 自动轮播核心代码（第116-122行）—— 详见第五章
+
+3.3.6 商品点击事件（第124-137行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ gvNew.setOnItemClickListener((parent, V, position, id) -> {  │
+  │     Goods goods = newList.get(position);                     │
+  │     goDetail(goods.getGoodsId());                           │
+  │ });                                                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  GridView 使用 setOnItemClickListener，参数中的 position 就是
+  数组索引。通过索引从 List 中取出对应商品，提取 goodsId 传给详情页。
+
+3.3.7 分类点击跳转（第139-146行）—— 详见第七章
+
+3.4 onResume / onPause —— 生命周期管理（第149-164行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ @Override                                                    │
+  │ public void onResume() {                                     │
+  │     super.onResume();                                        │
+  │     loadData();  // 每次回到首页重新加载数据                   │
+  │     if (!bannerUrls.isEmpty()) {                             │
+  │         bannerHandler.postDelayed(bannerRunnable,            │
+  │                 BANNER_DELAY);  // 恢复轮播                   │
+  │     }                                                        │
+  │ }                                                            │
+  │                                                              │
+  │ @Override                                                    │
+  │ public void onPause() {                                      │
+  │     super.onPause();                                         │
+  │     bannerHandler.removeCallbacks(bannerRunnable);           │
+  │     // ↑ 停止轮播，防止用户看不到时还在消耗资源               │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么在 onPause 停止轮播？
+    - Fragment 不可见时（用户切换到其他Tab或App进入后台），
+      轮播没有意义，只会浪费CPU和电量
+    - onResume 恢复轮播，确保每次可见时都在轮播
+
+  为什么在 onResume 重新 loadData？
+    - 用户可能在其他页面（如购物车）修改了数据
+    - 回到首页时需要反映最新状态
+    - 但频繁请求可能给服务器压力——当前方案是简单的实现
+
+3.5 isLogin —— 登录状态检查（第166-171行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private boolean isLogin() {                                  │
+  │     if (getActivity() == null) return false;                 │
+  │     SharedPreferences info = getActivity()                   │
+  │         .getSharedPreferences("info", 0);                   │
+  │     String token = info.getString("token", "");             │
+  │     return !token.isEmpty(); // token非空=已登录              │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+3.6 goDetail —— 商品详情跳转（第173-177行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private void goDetail(Long goodsId) {                        │
+  │     Intent intent = new Intent(getActivity(),                │
+  │             DetailActivity.class);                          │
+  │     intent.putExtra("goodsId", goodsId);                     │
+  │     startActivity(intent);                                   │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  通过 Intent 传递 goodsId（Long 类型），DetailActivity 在 onCreate
+  中通过 getIntent().getLongExtra("goodsId", 0) 获取。
+
+3.7 loadData —— 数据加载入口（第247-279行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private void loadData() {                                    │
+  │     if (!isLogin()) return;  // 未登录不加载                  │
+  │                                                              │
+  │     loadBanner();  // → /index-infos（轮播+新品+热销+推荐）   │
+  │                                                              │
+  │     // 分类（独立接口，不与商品数据耦合）                       │
+  │     HttpUtil.get("/categories", callback -> {               │
+  │         parse → categoryList.clear() → addAll →              │
+  │         runOnUiThread → categoryGridAdapter.notifyDataSet...│
+  │     });                                                      │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  两个请求是并发的（不是顺序的）——  loadBanner() 和 /categories
+  请求几乎同时发出。由于 HttpUtil 使用线程池，两个请求各自在独立
+  线程执行，互不等待。这是性能优化：用户看到页面的速度取决于最慢的
+  那个请求，而不是两个请求时间之和。
+
+
+================================================================================
+四、搜索栏区域实现
+================================================================================
+
+4.1 布局结构
+
+  搜索栏 = 横向 LinearLayout（青绿底色 #00C9A7）
+            ├── ☰ 菜单按钮（TextView, textColor="#FFFFFF"）
+            ├── 搜索框（LinearLayout, 白色圆角背景 bg_search）
+            │     ├── 🔍 搜索图标（ImageView, 系统自带图标）
+            │     └── "搜索商品"文字（TextView, textColor="#999999"）
+            └── 👤 用户按钮（ImageView, src=ic_my, tint="#FFFFFF"）
+
+4.2 搜索框背景（bg_search.xml）
+
+  白色圆角矩形：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <shape android:shape="rectangle">                            │
+  │     <solid android:color="#FFFFFF" />                        │
+  │     <corners android:radius="20dp" />      ← 圆角20dp        │
+  │ </shape>                                                     │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么用 20dp 圆角？
+    圆角搜索框是当前移动端设计趋势（iOS和Material Design都推荐），
+    视觉上比直角更友好，符合"新蜂商城"年轻化品牌定位。
+
+4.3 用户图标的技术细节
+
+  最初用 TextView + emoji "👤" 显示用户图标，但设置了 textColor="#FFFFFF"
+  后 emoji 仍然显示为彩色——因为部分 emoji 是 multi-color glyph，
+  不受单色 textColor 控制。
+
+  后来改为 ImageView + 自定义矢量图 ic_my.xml + android:tint="#FFFFFF"：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <ImageView                                                   │
+  │     android:src="@drawable/ic_my"                           │
+  │     android:tint="#FFFFFF" />     ← tint覆盖矢量图颜色为白色  │
+  └─────────────────────────────────────────────────────────────┘
+
+  tint 的工作原理：将矢量图中所有像素的颜色替换为指定颜色。因为
+  ic_my.xml 中 fillColor="@android:color/white"（白色），tint="#FFFFFF"
+  叠加后仍然显示白色。如果去掉 tint，图标会显示默认灰色（#666666）。
+
+
+================================================================================
+五、轮播图（Banner）实现
+================================================================================
+
+5.1 轮播图原理
+
+  使用 ViewPager2 作为容器，BannerAdapter 提供每个页面的 ImageView。
+  通过 Handler.postDelayed 创建定时器，每3秒自动切换到下一页。
+
+5.2 BannerAdapter 实现
+
+  文件：app/src/main/java/com/example/newbee2/adapter/BannerAdapter.java
+  共50行，继承 RecyclerView.Adapter（ViewPager2 底层基于 RecyclerView）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ public class BannerAdapter extends RecyclerView.Adapter<> {  │
+  │     private List<String> bannerUrls;  // 图片URL列表         │
+  │                                                              │
+  │     public BannerViewHolder onCreateViewHolder(ViewGroup p,   │
+  │             int viewType) {                                  │
+  │         // 加载 item_banner.xml（只有一个 ImageView）         │
+  │         View view = LayoutInflater.from(p.getContext())      │
+  │             .inflate(R.layout.item_banner, p, false);       │
+  │         return new BannerViewHolder(view);                  │
+  │     }                                                        │
+  │                                                              │
+  │     public void onBindViewHolder(BannerViewHolder h, int p) {│
+  │         ImageUtil.loadImage(h.imageView, bannerUrls.get(p)); │
+  │         // ImageUtil 内部用 Glide 加载图片，自动缓存          │
+  │     }                                                        │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  item_banner.xml：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <ImageView                                                   │
+  │     android:id="@+id/iv_banner"                             │
+  │     android:layout_width="match_parent"                     │
+  │     android:layout_height="match_parent"                    │
+  │     android:scaleType="centerCrop" />  ← 居中裁剪，不变形    │
+  └─────────────────────────────────────────────────────────────┘
+
+5.3 自动轮播的 Runnabl e
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ bannerRunnable = () -> {                                     │
+  │     if (!bannerUrls.isEmpty()) {                             │
+  │         // 计算下一页索引（循环：1→2→3→1→2→3...）            │
+  │         int next = (vpBanner.getCurrentItem() + 1)           │
+  │                 % bannerUrls.size();                         │
+  │         //    ↑ 取模运算确保超出最大值后回到0                  │
+  │                                                              │
+  │         vpBanner.setCurrentItem(next, true);                 │
+  │         //                        ↑ true = 平滑滚动动画       │
+  │     }                                                        │
+  │     // 3秒后再次执行自己（循环定时器）                          │
+  │     bannerHandler.postDelayed(bannerRunnable, BANNER_DELAY); │
+  │     //                    ↑ 同一个Runnable  ↑ 3000毫秒        │
+  │ };                                                           │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么用 Handler.postDelayed 而不是 Timer？
+    - Handler 绑定到主线程的 Looper，Runnable 在主线程执行
+    - setCurrentItem 是 UI 操作，必须在主线程
+    - Timer 的 run() 在子线程，需要额外 post 回主线程，更麻烦
+    - Handler 可以直接 removeCallbacks 取消，更简单
+
+  为什么用取模运算（%）实现循环？
+    假设 bannerUrls.size() = 3：
+      currentItem=0 → next=(0+1)%3=1 → 显示第2张
+      currentItem=1 → next=(1+1)%3=2 → 显示第3张
+      currentItem=2 → next=(2+1)%3=0 → 回到第1张
+    取模运算完美实现了循环轮播，不需要额外的 if-else 判断。
+
+5.4 轮播的生命周期管理
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ onResume():                                                  │
+  │     bannerHandler.postDelayed(bannerRunnable, BANNER_DELAY); │
+  │     // 页面可见时启动轮播                                     │
+  │                                                              │
+  │ onPause():                                                   │
+  │     bannerHandler.removeCallbacks(bannerRunnable);           │
+  │     // 页面不可见时移除定时任务                                 │
+  └─────────────────────────────────────────────────────────────┘
+
+  这个设计避免了以下问题：
+  - 用户离开首页后轮播仍在后台运行（浪费CPU/电量）
+  - Fragment 销毁后 Handler 持有引用导致内存泄漏（onPause 清理了）
+  - 多次 onResume 调用导致多个定时任务叠加（同一个 Runnable，
+    Handler 会自动去重，不会叠加）
+
+
+================================================================================
+六、快捷入口
+================================================================================
+
+6.1 布局结构
+
+  两个横向 LinearLayout，每个 5 个子项。
+  每个子项 = 纵向 LinearLayout + 圆角正方形背景 + emoji + 文字。
+
+6.2 代码实现
+
+  快捷入口完全用 XML 静态布局实现，没有 Java 代码参与。
+  原因：这些入口是展示性的，不需要动态数据加载和点击交互。
+
+6.3 为什么用 emoji 而不是矢量图？
+
+  快捷入口的10个图标使用了 emoji（🛒👗🌍🥬🏠💰9️⃣🎫💎📋），
+  原因：
+  - 这些入口与后端 API 返回的分类数据无关（后端返回的是家电/女装
+    等实际商品分类，这些快捷入口是营销性质的）
+  - emoji 实现简单，一个字符就是一个视觉元素
+  - 快捷入口不涉及颜色定制等复杂需求
+
+
+================================================================================
+七、分类网格实现
+================================================================================
+
+7.1 数据来源
+
+  分类数据从 /categories 接口获取：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ GET /mallapi/api/v1/categories                              │
+  │ 返回格式：                                                   │
+  │ {                                                            │
+  │   "resultCode": 200,                                        │
+  │   "data": [                                                  │
+  │     {"categoryId":1, "categoryName":"家电 数码", "categoryLevel":1}, │
+  │     {"categoryId":2, "categoryName":"女装 潮流", "categoryLevel":1}, │
+  │     ...                                                      │
+  │   ]                                                          │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+7.2 CategoryGridAdapter
+
+  文件：app/src/main/java/com/example/newbee2/adapter/CategoryGridAdapter.java
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private static final Map<String, Integer> CATEGORY_ICONS =   │
+  │     new HashMap<>();  // 静态初始化块                         │
+  │ static {                                                     │
+  │     CATEGORY_ICONS.put("家电", R.drawable.ic_cat_elec);      │
+  │     CATEGORY_ICONS.put("女装", R.drawable.ic_cat_clothes);    │
+  │     ...                                                      │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  图标映射使用 HashMap<String, Integer>，键是分类名（取第一个词），
+  值是 R.drawable.xxx 资源 ID。
+
+  为什么用 R.drawable.xxx 资源 ID 存储？
+    Android 中所有资源（layout/drawable/string等）在编译后都会被分配
+    一个 int 类型的 ID（R.drawable.ic_cat_elec = 0x7f080123）。
+    HashMap<String, Integer> 存储这些 ID 非常高效，查询时只需一次
+    HashMap.get() 操作。
+
+7.3 图标匹配逻辑
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ private int getIconForCategory(String categoryName) {        │
+  │     if (categoryName == null)                                │
+  │         return R.drawable.ic_category;  // 默认图标          │
+  │                                                              │
+  │     String firstWord = categoryName.split("\\s+")[0];        │
+  │     // "家电 数码" → split("\\s+") → ["家电","数码"] → [0]="家电"│
+  │                                                              │
+  │     if (CATEGORY_ICONS.containsKey(firstWord)) {              │
+  │         return CATEGORY_ICONS.get(firstWord);                │
+  │     }                                                        │
+  │     return R.drawable.ic_category;  // 找不到匹配用默认图标    │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么用 split("\\s+")[0] 取第一个词？
+    后端分类名格式为"家电 数码"、"女装 潮流"等（中文+空格+描述），
+    第一个词是核心分类名，后面的词是对分类的描述说明。
+
+7.4 分类点击 → 跳转分类Tab并选中（第139-146行）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ gvCategory.setOnItemClickListener((parent, v, pos, id) -> {  │
+  │     if (getActivity() != null                                │
+  │             && pos < categoryList.size()) {                  │
+  │         Long categoryId = categoryList.get(pos)              │
+  │                 .getCategoryId();                           │
+  │                                                              │
+  │         // ★ 设置静态变量，CategoryFragment 检测后自动选中    │
+  │         CategoryFragment.setPendingCategory(categoryId);     │
+  │                                                              │
+  │         // ★ 切换Tab                                        │
+  │         ((MainActivity) getActivity()).switchToTab(1);       │
+  │     }                                                        │
+  │ });                                                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么用静态变量通信而不是 Intent 传参？
+    CategoryFragment 已经被 FragmentStateAdapter 管理，不能通过
+    new CategoryFragment() + setArguments() 的方式传参。静态变量
+    是 Fragment 间最简单直接的通信方式。CategoryFragment 在
+    onResume 和 loadCategories 中会检查 pendingCategoryId。
+
+7.5 图标迭代历程
+
+  分类图标经历了多次迭代：
+    版本1：emoji 图标（📺👗🛋️等）→ 不专业
+    版本2：手绘矢量图 → 画得不好，不像对应分类
+    版本3：彩色圆底+首字 → 清晰但不美观
+    版本4：Material Design 标准矢量图 → 每个分类匹配主题色 → 最终方案
+
+  当前9个分类图标及其主题色：
+    家电(橙#FF6B00)  女装(粉#E91E63)  家具(棕#795548)
+    运动(绿#4CAF50)  游戏(紫#9C27B0)  美妆(玫红#FF4081)
+    工具(蓝灰#607D8B) 鞋靴(蓝#2196F3)  玩具(橙#FF9800)
+
+
+================================================================================
+八、商品板块实现（新品上线/热门商品/最新推荐）
+================================================================================
+
+8.1 三个板块的共同特点
+
+  - 使用相同的布局模式：标题 + MyGridView（2列）
+  - 使用相同的适配器类 GoodsAdapter（各自独立实例）
+  - 使用相同的 item 布局 item_goods_grid.xml
+  - 数据来自同一个接口 /index-infos 的不同字段
+
+8.2 GoodsAdapter（通用商品适配器）
+
+  文件：app/src/main/java/com/example/newbee2/adapter/GoodsAdapter.java
+  继承 BaseAdapter（GridView 需要使用 BaseAdapter，不是 RecyclerView.Adapter）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ public View getView(int pos, View convertView, ViewGroup p) {│
+  │     // ViewHolder 模式：复用 convertView 避免重复 inflate     │
+  │     Goods goods = goodsList.get(pos);                        │
+  │     holder.tvName.setText(goods.getGoodsName());            │
+  │     holder.tvPrice.setText("¥" + goods.getSellingPrice());  │
+  │     ImageUtil.loadImage(holder.ivGoods,                     │
+  │             goods.getGoodsCoverImg());  // Glide 加载图片     │
+  │     return convertView;                                      │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  ViewHolder 模式：
+    第一次 getView 时 inflate 布局 + new ViewHolder + setTag
+    后续复用 convertView + getTag 获取 ViewHolder
+    这是 ListView/GridView 性能优化的标准做法，避免重复 inflate。
+
+8.3 商品 item 布局（item_goods_grid.xml）
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <LinearLayout  orientation="vertical"  background="#FFFFFF"> │
+  │     <ImageView  商品图  150dp高  centerCrop />               │
+  │     <TextView   商品名  maxLines="2"  13sp />                │
+  │     <TextView   价格    红色粗体     14sp />                  │
+  │ </LinearLayout>                                              │
+  └─────────────────────────────────────────────────────────────┘
+
+  为什么图片固定 150dp 高？
+    2列布局下每列宽度约手机屏幕一半。设置固定高度确保所有商品卡片
+    高度一致，视觉效果整齐。
+
+  为什么 maxLines="2"？
+    商品名称可能很长（如"华为Mate 60 Pro 5G智能手机..."），
+    限制最多2行，超出用省略号（ellipsize="end"），防止卡片被撑高。
+
+8.4 商品点击 → 详情
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ gvNew.setOnItemClickListener((p, v, pos, id) -> {           │
+  │     goDetail(newList.get(pos).getGoodsId());               │
+  │ });                                                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  三个板块的点击逻辑完全相同，只是取各自 List 中的数据。
+
+
+================================================================================
+九、数据加载流程
+================================================================================
+
+9.1 涉及两个 API 接口
+
+  ┌─────────────────┬────────────────────────────────────────────┐
+  │ 接口              │ 返回的数据                                  │
+  ├─────────────────┼────────────────────────────────────────────┤
+  │ GET /index-infos │ carousels(轮播图3张)                        │
+  │                  │ newGoodses(新品上线列表)                     │
+  │                  │ hotGoodses(热门商品列表)                     │
+  │                  │ recommendGoodses(最新推荐列表)               │
+  ├─────────────────┼────────────────────────────────────────────┤
+  │ GET /categories  │ List<Category> (商品分类，含categoryId和    │
+  │                  │ categoryName，约9-10条)                     │
+  └─────────────────┴────────────────────────────────────────────┘
+
+9.2 /index-infos 接口 → loadBanner() 方法
+
+  为什么用手动 JsonObject 解析而不是 TypeToken 泛型？
+    /index-infos 返回的结构不是标准 Result<List<Goods>>，而是：
+    {
+      "resultCode": 200,
+      "data": {
+        "carousels": [{...}, {...}, {...}],
+        "newGoodses": [{...}, ...],
+        "hotGoodses": [{...}, ...],
+        "recommendGoodses": [{...}, ...]
+      }
+    }
+    data 是包含4个不同类型数组的 JsonObject，不是单一的 List。
+    如果用 TypeToken 需要定义一个包含4个 List 字段的复杂 POJO，
+    而手动 JsonObject 解析更灵活直观。
+
+  解析步骤：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ 1. gson.fromJson(data, JsonObject.class) → 根JSON对象       │
+  │ 2. json.getAsJsonObject("data") → data子对象                │
+  │ 3. dataObj.has("carousels") → 检查字段存在                   │
+  │ 4. dataObj.getAsJsonArray("carousels") → 轮播数组           │
+  │ 5. 遍历数组，取出每个元素的 carouselUrl 字段                  │
+  │ 6. 同理处理 newGoodses/hotGoodses/recommendGoodses          │
+  │ 7. runOnUiThread → 刷新所有适配器                            │
+  └─────────────────────────────────────────────────────────────┘
+
+9.3 /categories 接口 → loadData() 方法
+
+  使用标准 TypeToken 解析：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ Type type = new TypeToken<Result<List<Category>>>(){}       │
+  │         .getType();                                         │
+  │ Result<List<Category>> result =                              │
+  │         gson.fromJson(data, type);                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  解析成功后：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ categoryList.clear();                   // 清空旧数据        │
+  │ categoryList.addAll(result.getData());   // 添加新数据        │
+  │ runOnUiThread(() ->                      // 切主线程          │
+  │     categoryGridAdapter.notifyDataSetChanged()); // 刷新UI   │
+  └─────────────────────────────────────────────────────────────┘
+
+9.4 两个接口的并发加载
+
+  loadData() 中两个请求几乎同时发出：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ loadBanner();         // → HttpUtil.get("/index-infos",...) │
+  │ HttpUtil.get("/categories",...);  // → 紧接着发出             │
+  └─────────────────────────────────────────────────────────────┘
+
+  时间线：
+  ┌──────────────────────────────────────────────────────────────┐
+  │ t=0ms    发出 /index-infos 请求（后台线程1）                    │
+  │ t=0ms    发出 /categories 请求（后台线程2）                     │
+  │ t=200ms  后台线程1收到 /index-infos 响应 → 回调 → 切主线程     │
+  │ t=300ms  后台线程2收到 /categories 响应 → 回调 → 切主线程      │
+  │ t=300ms+ 所有数据已加载，UI 全部刷新完成                        │
+  └──────────────────────────────────────────────────────────────┘
+
+  总耗时 = max(/index-infos 耗时, /categories 耗时)，而不是两者之和。
+
+
+================================================================================
+十、自定义 MyGridView
+================================================================================
+
+  文件：app/src/main/java/com/example/newbee2/widget/MyGridView.java
+
+10.1 为什么需要 MyGridView？
+
+  ScrollView 内部放置 GridView 时，GridView 的身高计算会出现问题：
+  默认情况下 GridView 只显示一行（或少量行），剩余数据被截断。
+
+  根本原因：ScrollView 给子 View 传递的 heightMeasureSpec 模式是
+  UNSPECIFIED（即"你想要多高？告诉我"），但 GridView 内部是滚动控件，
+  它在 UNSPECIFIED 模式下只会计算一行的高度。
+
+10.2 实现代码
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ public class MyGridView extends GridView {                   │
+  │     @Override                                                │
+  │     protected void onMeasure(int widthSpec, int heightSpec) {│
+  │         // 强制构造一个 AT_MOST 模式的 MeasureSpec             │
+  │         int expandSpec = MeasureSpec.makeMeasureSpec(        │
+  │             Integer.MAX_VALUE >> 2,  // size: 约 5 亿像素    │
+  │             MeasureSpec.AT_MOST);    // mode: 最多这么大     │
+  │         //                     ↑ 不是 UNSPECIFIED，而是限制    │
+  │         //                     最大高度，Grid View会展开所有行  │
+  │         super.onMeasure(widthSpec, expandSpec);              │
+  │     }                                                        │
+  │ }                                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  MeasureSpec.makeMeasureSpec 的两个参数：
+    参数1 (size)：限制的最大尺寸。Integer.MAX_VALUE >> 2 ≈ 536,870,912
+                  像素，对于任何实际屏幕都足够大。
+    参数2 (mode)：测量模式。AT_MOST 表示"最多这么大，你可以小一些"。
+                  GridView 在 AT_MOST 模式下会计算全部行的高度。
+
+10.3 这个方案的局限性
+
+  - GridView 会一次性渲染所有 item，不做 View 回收复用
+  - 如果数据量很大（数百条），会造成性能问题和内存浪费
+  - 适用于首页这种少量固定数据的场景（每个板块不超过20个商品）
+  - 大数据量场景应该用 RecyclerView + NestedScrollView
+
+10.4 使用方式
+
+  在 XML 中用全限定类名引用：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ <com.example.newbee2.widget.MyGridView                      │
+  │     android:id="@+id/gv_category"                           │
+  │     android:numColumns="4"                                  │
+  │     ... />                                                   │
+  └─────────────────────────────────────────────────────────────┘
+
+  Java 代码中需要强制转型：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ MyGridView gvCategory =                                     │
+  │     (MyGridView) view.findViewById(R.id.gv_category);       │
+  └─────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+十一、涉及的适配器和布局文件
+================================================================================
+
+  首页涉及的完整文件清单：
+
+  Java 文件（4个）：
+    HomeFragment.java         ← 首页核心逻辑（298行）
+    BannerAdapter.java         ← 轮播图适配器（50行）
+    CategoryGridAdapter.java   ← 分类网格适配器（92行）
+    GoodsAdapter.java          ← 商品网格适配器（76行）
+
+  自定义控件（1个）：
+    MyGridView.java            ← 解决ScrollView嵌套问题（27行）
+
+  XML 布局文件（5个）：
+    fragment_home.xml          ← 首页主布局（415行）
+    item_banner.xml            ← 轮播图item（7行）
+    item_category_grid.xml     ← 分类网格item（22行）
+    item_goods_grid.xml        ← 商品网格item（37行）
+    bg_search.xml              ← 搜索框背景（圆角白色矩形）
+
+  矢量图标（9个分类图标）：
+    ic_cat_elec.xml     ic_cat_clothes.xml   ic_cat_furniture.xml
+    ic_cat_sport.xml    ic_cat_game.xml      ic_cat_beauty.xml
+    ic_cat_tool.xml     ic_cat_shoes.xml     ic_cat_toy.xml
+
+  API 接口（2个）：
+    GET /index-infos    ← 轮播图+三个商品板块数据
+    GET /categories     ← 分类列表数据
+
+
+================================================================================
+十二、技术难点与解决方案
+================================================================================
+
+12.1 ScrollView 嵌套 GridView 高度计算问题
+  详见第十章 MyGridView 的实现。
+
+12.2 轮播图循环播放和生命周期管理
+  详见第五章。
+
+12.3 首页分类图标设计迭代
+  详见第七章7.5节。
+
+12.4 Emoji 不接受 textColor 的问题
+  详见第四章4.3节。
+
+12.5 Fragment 间通信（首页→分类页选中分类）
+  详见第七章7.4节。
+
+12.6 数据接口聚合
+  /index-infos 接口一次性返回4种数据（轮播+三个商品板块），
+  避免了4次独立请求。解析时使用 JsonObject 手动处理，因为
+  data 字段不是标准泛型结构。
+
+12.7 搜索栏"伪搜索框"设计
+  不用 EditText 而用 clickable LinearLayout 模拟搜索框，
+  点击跳转独立搜索页。优点：不弹出键盘、过渡动画更流畅、
+  搜索页可以有更丰富的功能（排序、分页等）。
+
+================================================================================
+                         文档编写日期：2026年6月
+================================================================================
