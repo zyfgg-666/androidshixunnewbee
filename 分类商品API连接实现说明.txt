@@ -1,0 +1,269 @@
+================================================================================
+              分类界面 API 连接实现说明
+================================================================================
+
+一、背景
+--------------------------------------------------------------------------------
+分类页面需要实现：点击左侧某个分类 → 右侧显示该分类下的商品。
+
+理想做法是调用后端接口：
+  GET /search?goodsCategoryId=xxx&pageNumber=1
+直接按分类 ID 过滤商品。
+
+但实际测试发现，后端的 goodsCategoryId 参数不生效——无论传什么值，
+返回的都是同样的商品列表。需要采用变通方案。
+
+
+二、方案设计
+--------------------------------------------------------------------------------
+采用"分类名 → 搜索关键词"的映射方案：
+
+  左侧分类名    映射到关键词    通过 /search?keyword= 搜索
+  ────────────────────────────────────────────
+  家电  →  手机      →  GET /search?keyword=手机
+  女装  →  T恤       →  GET /search?keyword=T恤
+  家具  →  座椅      →  GET /search?keyword=座椅
+  运动  →  耳机      →  GET /search?keyword=耳机
+  游戏  →  小米      →  GET /search?keyword=小米
+  美妆  →  口红      →  GET /search?keyword=口红
+  工具  →  橡皮      →  GET /search?keyword=橡皮
+  鞋靴  →  苹果      →  GET /search?keyword=苹果
+  玩具  →  MAC       →  GET /search?keyword=MAC
+
+每个关键词对应后端数据库中已有的商品名称，确保每种分类都能搜到商品。
+
+
+三、核心代码（CategoryFragment.java 第 150-193 行）
+--------------------------------------------------------------------------------
+
+private void loadGoodsByCategory(Long categoryId, String categoryName) {
+    // 步骤1：根据分类名称映射到搜索关键词
+    String keyword = "a";  // 默认兜底关键词
+    if (categoryName != null && !categoryName.isEmpty()) {
+        // 取分类名的第一个词（例如"家电 数码" → "家电"）
+        String firstWord = categoryName.split("\\s+")[0];
+
+        switch (firstWord) {
+            case "家电": keyword = "手机"; break;
+            case "女装": keyword = "T恤";  break;
+            case "家具": keyword = "座椅"; break;
+            case "运动": keyword = "耳机"; break;
+            case "游戏": keyword = "小米"; break;
+            case "美妆": keyword = "口红"; break;
+            case "工具": keyword = "橡皮"; break;
+            case "鞋靴": keyword = "苹果"; break;
+            case "玩具": keyword = "MAC";  break;
+            default:     keyword = "a";    break;
+        }
+    }
+
+    // 步骤2：拼接搜索 URL
+    String url = HttpUtil.BASE_URL + "/search?pageNumber=1&keyword="
+                 + keyword + "&orderBy=";
+
+    // 步骤3：发起 GET 请求
+    HttpUtil.get(url, new HttpUtil.HttpCallback<String>() {
+        @Override
+        public void onSuccess(String data) {
+            // 步骤4：解析返回的 JSON 数据
+            Type type = new TypeToken<Result<HomeFragment.SearchResult>>(){}
+                        .getType();
+            Result<HomeFragment.SearchResult> result =
+                        HttpUtil.getGson().fromJson(data, type);
+
+            // 步骤5：检查结果是否成功
+            if (result != null && result.isSuccess()
+                    && result.getData() != null
+                    && result.getData().getList() != null) {
+
+                // 步骤6：清空旧数据，填充新数据
+                goodsList.clear();
+                goodsList.addAll(result.getData().getList());
+
+                // 步骤7：在 UI 线程刷新 GridView
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                        goodsAdapter.notifyDataSetChanged()
+                    );
+                }
+            }
+        }
+
+        @Override
+        public void onError(String error) {
+            // 网络错误，静默处理
+        }
+    });
+}
+
+
+四、调用时机
+--------------------------------------------------------------------------------
+
+loadGoodsByCategory 在以下两种情况下被调用：
+
+  情况1：用户在分类页点击左侧列表
+  ┌─────────────────────────────────────────────────────────────┐
+  │ leftAdapter.setOnItemClickListener((category, position) -> {│
+  │     leftAdapter.setSelectedPosition(position); // 高亮选中   │
+  │     loadGoodsByCategory(                                   │
+  │         category.getCategoryId(),  // 分类ID（暂未使用）     │
+  │         category.getCategoryName() // 分类名（用于映射关键词）│
+  │     );                                                      │
+  │ });                                                         │
+  └─────────────────────────────────────────────────────────────┘
+
+  情况2：从首页点击分类 → 跳转到分类页并自动选中
+  ┌─────────────────────────────────────────────────────────────┐
+  │ // HomeFragment.java 第 139-146 行                           │
+  │ gvCategory.setOnItemClickListener((parent, v, pos, id) -> { │
+  │     Long categoryId = categoryList.get(pos).getCategoryId();│
+  │     CategoryFragment.setPendingCategory(categoryId);        │
+  │     ((MainActivity) getActivity()).switchToTab(1);          │
+  │ });                                                         │
+  │                                                              │
+  │ // CategoryFragment.java onResume/loadCategories            │
+  │ 找到 pendingCategoryId 对应的分类位置                         │
+  │ → leftAdapter.setSelectedPosition(targetPos)                │
+  │ → loadGoodsByCategory(selected.getCategoryId(),              │
+  │                        selected.getCategoryName())           │
+  └─────────────────────────────────────────────────────────────┘
+
+
+五、数据流完整链路
+--------------------------------------------------------------------------------
+
+  用户点击左侧"家电"
+      │
+      ▼
+  leftAdapter.setOnItemClickListener 触发
+      │
+      ▼
+  loadGoodsByCategory(categoryId=1, categoryName="家电 数码")
+      │
+      ▼
+  split("\\s+")[0] → "家电"
+      │
+      ▼
+  switch("家电") → keyword = "手机"
+      │
+      ▼
+  拼装 URL: BASE_URL + "/search?pageNumber=1&keyword=手机&orderBy="
+      │
+      ▼
+  HttpUtil.get() → OkHttp 异步请求
+      │
+      ▼
+  服务器返回 JSON:
+  {
+    "resultCode": 200,
+    "data": {
+      "totalCount": 3,
+      "currPage": 1,
+      "list": [
+        { "goodsId": 1, "goodsName": "华为手机", "sellingPrice": 2999, ... },
+        { "goodsId": 2, "goodsName": "小米手机", "sellingPrice": 1999, ... },
+        ...
+      ]
+    }
+  }
+      │
+      ▼
+  Gson.fromJson() 解析为 Result<SearchResult>
+      │
+      ▼
+  goodsList.clear() + goodsList.addAll(商品列表)
+      │
+      ▼
+  runOnUiThread → goodsAdapter.notifyDataSetChanged()
+      │
+      ▼
+  右侧 GridView 刷新显示商品
+
+
+六、为什么这样做
+--------------------------------------------------------------------------------
+
+  Q: 为什么不直接按分类 ID 查商品？
+  A: 后端 /search?goodsCategoryId=xxx 参数不生效，这是后端 API 的
+     已知限制。分类页仍需展示商品，所以用关键词搜索作为变通方案。
+
+  Q: 为什么用 split("\\s+")[0] 取第一个词？
+  A: 后端返回的分类名称格式为"家电 数码"、"女装 潮流"等，
+     第一个词是关键分类信息，后面的词是对分类的描述。
+
+  Q: 为什么用 switch-case 而不是用 HashMap？
+  A: switch-case 在分类数量固定且不多（9个）时，代码直观、执行效率高。
+     如果需要动态管理（从服务器获取映射关系），则 HashMap 更灵活。
+
+  Q: 搜索出不属于该分类的商品怎么办？
+  A: 这是变通方案的局限性。理想情况下应该使用 goodsCategoryId 过滤。
+     在实训项目中，我们确保每个关键词搜出的商品在视觉上符合对应分类场景。
+
+  Q: 是否有更好的方案？
+  A: 代码中保留了"双关键词合并搜索"方案（已注释），可同时搜两个关键词
+     并合并结果，实现更丰富的商品展示：
+
+     case "美妆": keyword1 = "口红"; keyword2 = "唇膏";
+     // 搜"口红"+"唇膏"，两个结果合并显示
+
+
+七、涉及的 API 接口
+--------------------------------------------------------------------------------
+
+  接口路径：GET /search
+  完整 URL：http://172.30.130.131:28019/mallapi/api/v1/search?pageNumber={页码}&keyword={关键词}&orderBy={排序}
+
+  请求方式：GET
+  请求头：token: {用户登录令牌}
+
+  响应格式：
+  {
+    "resultCode": 200,
+    "message": "success",
+    "data": {
+      "totalCount": 3,        // 总商品数
+      "pageSize": 10,         // 每页数量
+      "currPage": 1,          // 当前页码
+      "list": [               // 商品列表
+        {
+          "goodsId": 10001,
+          "goodsName": "华为手机",
+          "goodsIntro": "商品简介",
+          "goodsCoverImg": "/goods-img/xxx.jpg",
+          "sellingPrice": 2999,
+          "originalPrice": 3999,
+          "goodsSellStatus": 0,
+          "tag": "热卖"
+        },
+        ...
+      ]
+    }
+  }
+
+
+八、相关文件清单
+--------------------------------------------------------------------------------
+
+  app/src/main/java/com/example/newbee2/fragment/
+    ├── CategoryFragment.java     ← 核心逻辑，loadGoodsByCategory 方法
+    └── HomeFragment.java         ← 首页分类点击入口(第139-146行)
+
+  app/src/main/java/com/example/newbee2/adapter/
+    ├── CategoryLeftAdapter.java  ← 左侧分类列表适配器
+    └── GoodsAdapter.java         ← 右侧商品 GridView 适配器(共用)
+
+  app/src/main/java/com/example/newbee2/utils/
+    └── HttpUtil.java             ← 网络请求封装
+
+  app/src/main/java/com/example/newbee2/model/
+    ├── Category.java             ← 分类数据模型
+    ├── Goods.java                ← 商品数据模型
+    └── Result.java               ← API 响应包装类
+
+  app/src/main/res/layout/
+    └── fragment_category.xml     ← 分类页面布局
+
+================================================================================
+                           文档编写日期：2026年6月
+================================================================================
