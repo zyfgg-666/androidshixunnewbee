@@ -68,6 +68,7 @@ public class CreateOrderActivity extends AppCompatActivity {
         btnSubmit.setOnClickListener(v -> submitOrder());
 
         loadCartData();
+        loadDefaultAddress();
     }
 
     @Override
@@ -108,6 +109,39 @@ public class CreateOrderActivity extends AppCompatActivity {
                     rvOrder.setAdapter(adapter);
 
                     tvTotal.setText("合计: ¥" + totalPrice);
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+            }
+        });
+    }
+
+    // 自动加载默认收货地址
+    private void loadDefaultAddress() {
+        HttpUtil.get(HttpUtil.BASE_URL + "/address",
+                new HttpUtil.HttpCallback<String>() {
+            @Override
+            public void onSuccess(String data) {
+                try {
+                    Type type = new TypeToken<Result<List<com.example.newbee2.model.Address>>>(){}.getType();
+                    Result<List<com.example.newbee2.model.Address>> result =
+                            HttpUtil.getGson().fromJson(data, type);
+                    if (result != null && result.isSuccess() && result.getData() != null) {
+                        for (com.example.newbee2.model.Address addr : result.getData()) {
+                            if (addr.getDefaultFlag() != null && addr.getDefaultFlag() == 1) {
+                                runOnUiThread(() -> {
+                                    selectedAddressId = addr.getAddressId();
+                                    tvAddressName.setText(addr.getUserName());
+                                    tvAddressDetail.setText(addr.getFullAddress());
+                                });
+                                break;
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             }
 
