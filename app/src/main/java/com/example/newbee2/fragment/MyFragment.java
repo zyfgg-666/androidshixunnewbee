@@ -7,6 +7,7 @@ import androidx.appcompat.app.AlertDialog;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -26,6 +27,8 @@ import com.example.newbee2.utils.HttpUtil;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MyFragment extends Fragment {
 
@@ -62,14 +65,22 @@ public class MyFragment extends Fragment {
         llAbout = view.findViewById(R.id.ll_about);
         llLogout = view.findViewById(R.id.ll_logout);
 
-        // 用户信息点击
-        View.OnClickListener loginListener = v -> {
+        // 用户信息卡片点击（未登录→登录页）
+        llUser.setOnClickListener(v -> {
             if (!isLogin()) {
                 startActivity(new Intent(getActivity(), LoginActivity.class));
             }
-        };
-        llUser.setOnClickListener(loginListener);
-        tvNickname.setOnClickListener(loginListener);
+        });
+
+        // 昵称点击 → 编辑
+        tvNickname.setOnClickListener(v -> {
+            if (!isLogin()) {
+                startActivity(new Intent(getActivity(), LoginActivity.class));
+                return;
+            }
+            showEditDialog("修改昵称", tvNickname.getText().toString(),
+                    newText -> updateUserInfo("nickName", newText));
+        });
 
         // 订单点击
         llOrderAll.setOnClickListener(v -> goOrderList(-1));
@@ -78,6 +89,18 @@ public class MyFragment extends Fragment {
         llOrderDeliver.setOnClickListener(v -> goOrderList(2));
         llOrderReceive.setOnClickListener(v -> goOrderList(3));
         llOrderDone.setOnClickListener(v -> goOrderList(4));
+
+        // 个性签名点击 → 编辑
+        tvSign.setOnClickListener(v -> {
+            if (!isLogin()) {
+                startActivity(new Intent(getActivity(), LoginActivity.class));
+                return;
+            }
+            String current = tvSign.getText().toString();
+            if ("这家伙很懒，没有写签名！".equals(current)) current = "";
+            showEditDialog("修改个性签名", current,
+                    newText -> updateUserInfo("introduceSign", newText));
+        });
 
         // 地址管理
         llAddress.setOnClickListener(v -> {
@@ -191,6 +214,74 @@ public class MyFragment extends Fragment {
 
             @Override
             public void onError(String error) {
+            }
+        });
+    }
+
+    // 弹出编辑对话框
+    private void showEditDialog(String title, String currentText,
+                                 OnTextConfirmListener listener) {
+        EditText input = new EditText(getActivity());
+        input.setText(currentText);
+        input.setSelection(input.getText().length());
+        new AlertDialog.Builder(getActivity())
+                .setTitle(title)
+                .setView(input)
+                .setPositiveButton("确定", (dialog, which) -> {
+                    String newText = input.getText().toString().trim();
+                    if (!newText.isEmpty()) {
+                        listener.onConfirm(newText);
+                    }
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    interface OnTextConfirmListener {
+        void onConfirm(String newText);
+    }
+
+    // 更新用户信息
+    private void updateUserInfo(String field, String value) {
+        Map<String, Object> params = new HashMap<>();
+        params.put(field, value);
+
+        HttpUtil.put(HttpUtil.BASE_URL + "/user/info", params,
+                new HttpUtil.HttpCallback<String>() {
+            @Override
+            public void onSuccess(String data) {
+                try {
+                    Type type = new TypeToken<Result>(){}.getType();
+                    Result result = HttpUtil.getGson().fromJson(data, type);
+                    if (result != null && result.isSuccess()) {
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                Toast.makeText(getActivity(),
+                                        "修改成功", Toast.LENGTH_SHORT).show();
+                                // 重新加载用户信息刷新UI
+                                loadUserInfo();
+                            });
+                        }
+                    } else {
+                        String msg = result != null ? result.getMessage() : "修改失败";
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() ->
+                                Toast.makeText(getActivity(),
+                                        msg, Toast.LENGTH_SHORT).show());
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                        Toast.makeText(getActivity(),
+                                "网络错误: " + error, Toast.LENGTH_SHORT).show());
+                }
             }
         });
     }
