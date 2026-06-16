@@ -279,7 +279,7 @@ public class AddressEditActivity extends AppCompatActivity {
         params.put("cityName", cityName);
         params.put("regionName", regionName);
         params.put("detailAddress", detail);
-        params.put("defaultFlag", 1);
+        params.put("defaultFlag", 0);
 
         if (addressId != null) {
             params.put("addressId", addressId);

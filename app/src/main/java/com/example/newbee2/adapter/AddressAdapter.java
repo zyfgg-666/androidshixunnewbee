@@ -26,6 +26,7 @@ public class AddressAdapter extends RecyclerView.Adapter<AddressAdapter.ViewHold
         void onEdit(Address address);
         void onDelete(Address address);
         void onSelect(Address address);
+        void onSetDefault(Address address);
     }
 
     public AddressAdapter(Context context, List<Address> addressList) {
@@ -80,6 +81,12 @@ public class AddressAdapter extends RecyclerView.Adapter<AddressAdapter.ViewHold
             });
             holder.tvDelete.setOnClickListener(v -> {
                 if (listener != null) listener.onDelete(address);
+            });
+            // 设置默认地址
+            holder.cbDefault.setOnClickListener(v -> {
+                if (address.getDefaultFlag() != 1 && listener != null) {
+                    listener.onSetDefault(address);
+                }
             });
         }
     }

@@ -75,6 +75,11 @@ public class AddressListActivity extends AppCompatActivity {
                     finish();
                 }
             }
+
+            @Override
+            public void onSetDefault(Address address) {
+                setDefaultAddress(address);
+            }
         });
     }
 
@@ -104,6 +109,43 @@ public class AddressListActivity extends AppCompatActivity {
 
             @Override
             public void onError(String error) {
+            }
+        });
+    }
+
+    private void setDefaultAddress(Address address) {
+        java.util.Map<String, Object> params = new java.util.HashMap<>();
+        params.put("addressId", address.getAddressId());
+        params.put("defaultFlag", 1);
+
+        HttpUtil.put(HttpUtil.BASE_URL + "/address", params,
+                new HttpUtil.HttpCallback<String>() {
+            @Override
+            public void onSuccess(String data) {
+                try {
+                    java.lang.reflect.Type type =
+                            new TypeToken<Result>(){}.getType();
+                    Result result = HttpUtil.getGson().fromJson(data, type);
+                    if (result != null && result.isSuccess()) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(AddressListActivity.this,
+                                    "已设为默认地址", Toast.LENGTH_SHORT).show();
+                            loadAddresses();
+                        });
+                    } else {
+                        String msg = result != null ? result.getMessage() : "设置失败";
+                        runOnUiThread(() -> Toast.makeText(AddressListActivity.this,
+                                msg, Toast.LENGTH_SHORT).show());
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> Toast.makeText(AddressListActivity.this,
+                        "网络错误: " + error, Toast.LENGTH_SHORT).show());
             }
         });
     }
