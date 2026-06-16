@@ -31,6 +31,7 @@ public class HttpUtil {
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
     private static Context appContext;
 
+
     // 线程池：在后台线程执行 HttpURLConnection 同步阻塞请求
     private static final ExecutorService threadPool = Executors.newFixedThreadPool(4);
 
