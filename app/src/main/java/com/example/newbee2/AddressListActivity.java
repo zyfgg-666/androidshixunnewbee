@@ -115,7 +115,14 @@ public class AddressListActivity extends AppCompatActivity {
 
     private void setDefaultAddress(Address address) {
         java.util.Map<String, Object> params = new java.util.HashMap<>();
+        // ★ 发送完整字段，确保接口正确接收
         params.put("addressId", address.getAddressId());
+        params.put("userName", address.getUserName());
+        params.put("userPhone", address.getUserPhone());
+        params.put("provinceName", address.getProvinceName());
+        params.put("cityName", address.getCityName());
+        params.put("regionName", address.getRegionName());
+        params.put("detailAddress", address.getDetailAddress());
         params.put("defaultFlag", 1);
 
         HttpUtil.put(HttpUtil.BASE_URL + "/address", params,
