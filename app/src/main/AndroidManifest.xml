@@ -25,14 +25,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true" />
         <activity android:name=".LoginActivity" />
         <activity android:name=".SearchActivity"
             android:exported="true" />
