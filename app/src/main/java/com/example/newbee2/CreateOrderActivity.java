@@ -177,6 +177,7 @@ public class CreateOrderActivity extends AppCompatActivity {
 
         TextView tvWechat = dialogView.findViewById(R.id.tv_wechat);
         TextView tvAlipay = dialogView.findViewById(R.id.tv_alipay);
+        TextView tvLater = dialogView.findViewById(R.id.tv_later);
 
         AlertDialog dialog = builder.create();
 
@@ -188,6 +189,19 @@ public class CreateOrderActivity extends AppCompatActivity {
         tvAlipay.setOnClickListener(v -> {
             dialog.dismiss();
             payOrder(orderNo, 2);
+        });
+
+        // 稍后支付：不调用支付接口，直接跳转待支付列表
+        tvLater.setOnClickListener(v -> {
+            dialog.dismiss();
+            Toast.makeText(CreateOrderActivity.this,
+                    "订单已保存，请尽快支付", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(CreateOrderActivity.this,
+                    OrderListActivity.class);
+            intent.putExtra("status", 0); // 待支付
+            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
+            finish();
         });
 
         dialog.show();
