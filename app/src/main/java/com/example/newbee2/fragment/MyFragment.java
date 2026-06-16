@@ -35,7 +35,7 @@ public class MyFragment extends Fragment {
     private TextView tvNickname, tvLoginName, tvSign;
     private TextView tvBadgeUnpay, tvBadgeDeliver, tvBadgeReceive;
     private LinearLayout llUser, llOrderAll, llOrderUnpay, llOrderConfirm, llOrderDeliver, llOrderReceive, llOrderDone;
-    private LinearLayout llAddress, llAbout, llLogout;
+    private LinearLayout llAddress, llAccount, llAbout, llLogout;
 
     @Nullable
     @Override
@@ -62,6 +62,7 @@ public class MyFragment extends Fragment {
         tvBadgeDeliver = view.findViewById(R.id.tv_badge_deliver);
         tvBadgeReceive = view.findViewById(R.id.tv_badge_receive);
         llAddress = view.findViewById(R.id.ll_address);
+        llAccount = view.findViewById(R.id.ll_account);
         llAbout = view.findViewById(R.id.ll_about);
         llLogout = view.findViewById(R.id.ll_logout);
 
@@ -100,6 +101,16 @@ public class MyFragment extends Fragment {
             if ("这家伙很懒，没有写签名！".equals(current)) current = "";
             showEditDialog("修改个性签名", current,
                     newText -> updateUserInfo("introduceSign", newText));
+        });
+
+        // 账号管理
+        llAccount.setOnClickListener(v -> {
+            if (!isLogin()) {
+                startActivity(new Intent(getActivity(), LoginActivity.class));
+                return;
+            }
+            startActivity(new Intent(getActivity(),
+                    com.example.newbee2.AccountManageActivity.class));
         });
 
         // 地址管理

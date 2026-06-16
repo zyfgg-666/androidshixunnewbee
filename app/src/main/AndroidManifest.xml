@@ -42,6 +42,7 @@
         <activity android:name=".OrderListActivity"
             android:exported="true" />
         <activity android:name=".AboutActivity" />
+        <activity android:name=".AccountManageActivity" />
     </application>
 
 
