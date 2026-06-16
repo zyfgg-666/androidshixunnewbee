@@ -1,0 +1,72 @@
+================================================================================
+              Java 文件与界面对应关系
+================================================================================
+
+一、启动页
+  SplashActivity.java          — 启动页（蜜蜂推购物车Logo，2秒跳转主页）
+
+二、主框架
+  MainActivity.java            — 主页面（ViewPager2 + BottomNavigationView 4个Tab）
+
+三、首页
+  fragment/HomeFragment.java     — 首页核心逻辑（轮播图、分类网格、三大商品板块）
+  adapter/BannerAdapter.java     — 轮播图适配器（首页使用）
+  adapter/CategoryGridAdapter.java — 分类网格适配器（首页使用，显示各分类图标）
+  adapter/GoodsAdapter.java      — 商品网格适配器（首页+分类页共用）
+  widget/MyGridView.java         — 自定义GridView（首页使用，解决ScrollView嵌套）
+
+四、分类页
+  fragment/CategoryFragment.java  — 分类页核心逻辑（左右联动）
+  adapter/CategoryLeftAdapter.java — 左侧分类列表适配器（分类页使用）
+
+五、搜索页
+  SearchActivity.java           — 搜索页面
+  adapter/SearchGoodsAdapter.java — 搜索结果适配器
+
+六、商品详情
+  DetailActivity.java           — 商品详情（加购、立即购买、购物车角标）
+  adapter/GoodsAdapter.java      — 商品网格适配器（首页+分类页共用，不直接用于详情）
+
+七、购物车
+  fragment/CartFragment.java     — 购物车核心逻辑（全选、结算、数量修改、删除）
+  adapter/CartAdapter.java       — 购物车列表适配器
+
+八、创建订单
+  CreateOrderActivity.java      — 创建订单+支付选择（收货地址、商品列表、支付弹窗）
+
+九、订单
+  OrderListActivity.java        — 订单列表（6个Tab）+ Tab切换
+  adapter/OrderAdapter.java     — 订单列表适配器（支付+确认收货按钮）
+  adapter/OrderGoodsAdapter.java — 订单内商品小列表适配器（订单列表和创建订单共用）
+
+十、地址管理
+  AddressListActivity.java      — 地址列表（普通模式 + 选择模式）
+  AddressEditActivity.java      — 地址编辑/新增（省市区三级联动选择器）
+  adapter/AddressAdapter.java    — 地址列表适配器
+
+十一、我的
+  fragment/MyFragment.java       — 我的页（用户信息、订单红点、编辑昵称/签名）
+
+十二、登录
+  LoginActivity.java            — 登录/注册
+
+十三、关于我们
+  AboutActivity.java            — 关于我们
+
+十四、网络层
+  utils/HttpUtil.java           — 网络请求封装（HttpURLConnection）— 所有需要联网的页面
+
+十五、工具类
+  utils/ImageUtil.java          — 图片加载封装（Glide）— 有商品图片的页面
+  utils/MD5Util.java            — MD5加密 — 登录页
+
+十六、数据模型
+  model/Result.java             — 统一接口响应 — 所有接口
+  model/User.java               — 用户 — 登录 + 我的
+  model/Goods.java              — 商品 — 首页 + 分类 + 搜索 + 详情
+  model/Category.java           — 分类 — 首页 + 分类
+  model/CartItem.java           — 购物车项 — 购物车 + 创建订单
+  model/Order.java              — 订单 — 订单列表 + 创建订单
+  model/OrderItem.java          — 订单商品 — 订单列表 + 创建订单
+  model/Address.java            — 地址 — 地址管理 + 创建订单
+  model/RegionData.java         — 省市区数据 — 地址编辑
