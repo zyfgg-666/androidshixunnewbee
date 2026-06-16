@@ -4,7 +4,6 @@ import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -97,7 +96,7 @@ public class CartAdapter extends RecyclerView.Adapter<CartAdapter.ViewHolder> {
         CheckBox cbSelect;
         ImageView ivGoods;
         TextView tvName, tvPrice, tvCount;
-        Button btnMinus, btnPlus;
+        TextView btnMinus, btnPlus;
         ImageView ivDelete;
 
         ViewHolder(@NonNull View itemView) {

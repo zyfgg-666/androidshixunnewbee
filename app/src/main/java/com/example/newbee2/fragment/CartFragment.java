@@ -39,7 +39,7 @@ public class CartFragment extends Fragment {
     private LinearLayout llEmpty;
     private TextView tvTotal;
     private CheckBox cbAll;
-    private Button btnSettle, btnGoHome;
+    private TextView btnSettle, btnGoHome;
     private LinearLayout llBottom;
     private CartAdapter cartAdapter;
     private List<CartItem> cartList = new ArrayList<>();

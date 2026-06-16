@@ -50,11 +50,12 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <Button
+            <TextView
                 android:id="@+id/btn_minus"
                 android:layout_width="30dp"
                 android:layout_height="30dp"
                 android:background="@drawable/bg_button_teal"
+                android:gravity="center"
                 android:text="-"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp" />
@@ -67,10 +68,11 @@
                 android:text="1"
                 android:textSize="14sp" />
 
-            <Button
+            <TextView
                 android:id="@+id/btn_plus"
                 android:layout_width="30dp"
                 android:layout_height="30dp"
+                android:gravity="center"
                 android:background="@drawable/bg_button_teal"
                 android:text="+"
                 android:textColor="#FFFFFF"
