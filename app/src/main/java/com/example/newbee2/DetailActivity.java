@@ -5,7 +5,6 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -27,7 +26,7 @@ public class DetailActivity extends AppCompatActivity {
     private static final String TAG = "DetailActivity";
     private ImageView ivBack, ivGoods, ivCart;
     private TextView tvName, tvIntro, tvPrice, tvDetail, tvCartBadge;
-    private Button btnAddCart, btnBuy;
+    private TextView btnAddCart, btnBuy;
     private Long goodsId;
     private Goods currentGoods;
 

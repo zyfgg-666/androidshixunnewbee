@@ -145,24 +145,28 @@
                 android:visibility="gone" />
         </FrameLayout>
 
-        <Button
+        <TextView
             android:id="@+id/btn_add_cart"
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_marginStart="15dp"
             android:layout_weight="1"
-            android:background="#00C9A7"
+            android:background="@drawable/bg_button_teal"
+            android:gravity="center"
             android:text="加入购物车"
-            android:textColor="#FFFFFF" />
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
 
-        <Button
+        <TextView
             android:id="@+id/btn_buy"
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_marginStart="10dp"
             android:layout_weight="1"
-            android:background="#FF0000"
+            android:background="@drawable/bg_button_red"
+            android:gravity="center"
             android:text="立即购买"
-            android:textColor="#FFFFFF" />
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
     </LinearLayout>
 </LinearLayout>
