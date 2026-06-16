@@ -17,6 +17,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.example.newbee2.AboutActivity;
+import com.example.newbee2.AccountManageActivity;
 import com.example.newbee2.AddressListActivity;
 import com.example.newbee2.LoginActivity;
 import com.example.newbee2.OrderListActivity;
@@ -110,7 +111,7 @@ public class MyFragment extends Fragment {
                 return;
             }
             startActivity(new Intent(getActivity(),
-                    com.example.newbee2.AccountManageActivity.class));
+                    AccountManageActivity.class));
         });
 
         // 地址管理
