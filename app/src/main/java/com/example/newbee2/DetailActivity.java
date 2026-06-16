@@ -26,6 +26,7 @@ public class DetailActivity extends AppCompatActivity {
     private static final String TAG = "DetailActivity";
     private ImageView ivBack, ivGoods, ivCart;
     private TextView tvName, tvIntro, tvPrice, tvDetail, tvCartBadge;
+    private TextView tvTag, tvOriginalPrice;
     private TextView btnAddCart, btnBuy;
     private Long goodsId;
     private Goods currentGoods;
@@ -46,6 +47,8 @@ public class DetailActivity extends AppCompatActivity {
             tvName = findViewById(R.id.tv_name);
             tvIntro = findViewById(R.id.tv_intro);
             tvPrice = findViewById(R.id.tv_price);
+            tvTag = findViewById(R.id.tv_tag);
+            tvOriginalPrice = findViewById(R.id.tv_original_price);
             tvDetail = findViewById(R.id.tv_detail);
             btnAddCart = findViewById(R.id.btn_add_cart);
             btnBuy = findViewById(R.id.btn_buy);
@@ -111,9 +114,29 @@ public class DetailActivity extends AppCompatActivity {
         if (currentGoods == null) return;
         tvName.setText(currentGoods.getGoodsName());
         tvIntro.setText(currentGoods.getGoodsIntro());
-        tvPrice.setText("¥" + (currentGoods.getSellingPrice() != null ? currentGoods.getSellingPrice() : 0));
+        tvPrice.setText("¥" + (currentGoods.getSellingPrice() != null
+                ? currentGoods.getSellingPrice() : 0));
         tvDetail.setText(currentGoods.getGoodsIntro());
         ImageUtil.loadImage(ivGoods, currentGoods.getGoodsCoverImg());
+
+        // 标签（热卖/新品等）
+        if (currentGoods.getTag() != null && !currentGoods.getTag().isEmpty()) {
+            tvTag.setVisibility(View.VISIBLE);
+            tvTag.setText(currentGoods.getTag());
+        } else {
+            tvTag.setVisibility(View.GONE);
+        }
+
+        // 原价（有折扣时显示删除线）
+        if (currentGoods.getOriginalPrice() != null
+                && currentGoods.getOriginalPrice() > 0
+                && !currentGoods.getOriginalPrice().equals(currentGoods.getSellingPrice())) {
+            tvOriginalPrice.setVisibility(View.VISIBLE);
+            tvOriginalPrice.setText("¥" + currentGoods.getOriginalPrice());
+            tvOriginalPrice.getPaint().setStrikeThruText(true);
+        } else {
+            tvOriginalPrice.setVisibility(View.GONE);
+        }
     }
 
     private void loadCartBadge() {
