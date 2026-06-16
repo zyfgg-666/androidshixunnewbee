@@ -204,9 +204,10 @@ public class DetailActivity extends AppCompatActivity {
                 Type type = new TypeToken<Result>(){}.getType();
                 Result result = HttpUtil.getGson().fromJson(data, type);
                 if (result != null && result.isSuccess()) {
-                    // 添加成功后跳转到创建订单页面
+                    // 添加成功后跳转到创建订单，只传递这一个商品ID
                     runOnUiThread(() -> {
                         Intent intent = new Intent(DetailActivity.this, CreateOrderActivity.class);
+                        intent.putExtra("singleGoodsId", goodsId);
                         startActivity(intent);
                     });
                 } else {

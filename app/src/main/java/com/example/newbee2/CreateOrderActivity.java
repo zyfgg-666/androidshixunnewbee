@@ -41,6 +41,7 @@ public class CreateOrderActivity extends AppCompatActivity {
     private Long selectedAddressId = null;
     private List<CartItem> cartItems = new ArrayList<>();
     private java.util.Set<Long> selectedItemIds = new java.util.HashSet<>();
+    private Long singleGoodsId = null; // 立即购买时传入的单个商品ID
     private int totalPrice = 0;
 
     @Override
@@ -64,6 +65,10 @@ public class CreateOrderActivity extends AppCompatActivity {
             for (long id : ids) {
                 selectedItemIds.add(id);
             }
+        }
+        // 接收立即购买传入的单个商品ID
+        if (getIntent().hasExtra("singleGoodsId")) {
+            singleGoodsId = getIntent().getLongExtra("singleGoodsId", 0);
         }
 
         ivBack.setOnClickListener(v -> finish());
@@ -102,6 +107,13 @@ public class CreateOrderActivity extends AppCompatActivity {
                     if (!selectedItemIds.isEmpty()) {
                         for (CartItem ci : result.getData()) {
                             if (selectedItemIds.contains(ci.getCartItemId())) {
+                                cartItems.add(ci);
+                            }
+                        }
+                    } else if (singleGoodsId != null) {
+                        // 立即购买：只保留匹配的商品
+                        for (CartItem ci : result.getData()) {
+                            if (singleGoodsId.equals(ci.getGoodsId())) {
                                 cartItems.add(ci);
                             }
                         }
