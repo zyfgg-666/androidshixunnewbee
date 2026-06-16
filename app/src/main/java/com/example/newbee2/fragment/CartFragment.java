@@ -108,7 +108,13 @@ public class CartFragment extends Fragment {
                 Toast.makeText(getActivity(), "请选择商品", Toast.LENGTH_SHORT).show();
                 return;
             }
+            // 传递选中的cartItemId列表
+            long[] selectedIds = new long[selected.size()];
+            for (int i = 0; i < selected.size(); i++) {
+                selectedIds[i] = selected.get(i).getCartItemId();
+            }
             Intent intent = new Intent(getActivity(), CreateOrderActivity.class);
+            intent.putExtra("selectedIds", selectedIds);
             startActivity(intent);
         });
 

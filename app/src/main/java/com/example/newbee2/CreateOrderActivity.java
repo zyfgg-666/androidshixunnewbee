@@ -40,6 +40,7 @@ public class CreateOrderActivity extends AppCompatActivity {
     private Button btnSubmit;
     private Long selectedAddressId = null;
     private List<CartItem> cartItems = new ArrayList<>();
+    private java.util.Set<Long> selectedItemIds = new java.util.HashSet<>();
     private int totalPrice = 0;
 
     @Override
@@ -56,6 +57,14 @@ public class CreateOrderActivity extends AppCompatActivity {
         tvOrderNo = findViewById(R.id.tv_order_no);
         rvOrder = findViewById(R.id.rv_order);
         btnSubmit = findViewById(R.id.btn_submit);
+
+        // 接收购物车传入的选中商品ID
+        long[] ids = getIntent().getLongArrayExtra("selectedIds");
+        if (ids != null) {
+            for (long id : ids) {
+                selectedItemIds.add(id);
+            }
+        }
 
         ivBack.setOnClickListener(v -> finish());
 
@@ -89,7 +98,16 @@ public class CreateOrderActivity extends AppCompatActivity {
                 Result<List<CartItem>> result = HttpUtil.getGson().fromJson(data, type);
                 if (result != null && result.isSuccess() && result.getData() != null) {
                     cartItems.clear();
-                    cartItems.addAll(result.getData());
+                    // 如果有选中ID列表，只保留选中的商品
+                    if (!selectedItemIds.isEmpty()) {
+                        for (CartItem ci : result.getData()) {
+                            if (selectedItemIds.contains(ci.getCartItemId())) {
+                                cartItems.add(ci);
+                            }
+                        }
+                    } else {
+                        cartItems.addAll(result.getData());
+                    }
 
                     // 转换为OrderItem用于展示
                     List<OrderItem> orderItems = new ArrayList<>();
