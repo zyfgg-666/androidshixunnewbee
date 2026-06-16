@@ -36,9 +36,10 @@ import java.util.Map;
 public class CartFragment extends Fragment {
 
     private RecyclerView rvCart;
-    private TextView tvEmpty, tvTotal;
+    private LinearLayout llEmpty;
+    private TextView tvTotal;
     private CheckBox cbAll;
-    private Button btnSettle;
+    private Button btnSettle, btnGoHome;
     private LinearLayout llBottom;
     private CartAdapter cartAdapter;
     private List<CartItem> cartList = new ArrayList<>();
@@ -55,11 +56,19 @@ public class CartFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         rvCart = view.findViewById(R.id.rv_cart);
-        tvEmpty = view.findViewById(R.id.tv_empty);
+        llEmpty = view.findViewById(R.id.tv_empty);
         tvTotal = view.findViewById(R.id.tv_total);
         cbAll = view.findViewById(R.id.cb_all);
         btnSettle = view.findViewById(R.id.btn_settle);
+        btnGoHome = view.findViewById(R.id.btn_go_home);
         llBottom = view.findViewById(R.id.ll_bottom);
+
+        // 空购物车"快去选购"按钮 → 跳转首页
+        btnGoHome.setOnClickListener(v -> {
+            if (getActivity() != null) {
+                ((com.example.newbee2.MainActivity) getActivity()).switchToTab(0);
+            }
+        });
 
         cartAdapter = new CartAdapter(getActivity(), cartList);
         rvCart.setLayoutManager(new LinearLayoutManager(getActivity()));
@@ -105,7 +114,7 @@ public class CartFragment extends Fragment {
 
         // 默认隐藏
         rvCart.setVisibility(View.GONE);
-        tvEmpty.setVisibility(View.VISIBLE);
+        llEmpty.setVisibility(View.VISIBLE);
         llBottom.setVisibility(View.GONE);
     }
 
@@ -123,7 +132,7 @@ public class CartFragment extends Fragment {
         String token = info.getString("token", "");
         if (token.isEmpty()) {
             rvCart.setVisibility(View.GONE);
-            tvEmpty.setVisibility(View.VISIBLE);
+            llEmpty.setVisibility(View.VISIBLE);
             llBottom.setVisibility(View.GONE);
             return;
         }
@@ -147,11 +156,11 @@ public class CartFragment extends Fragment {
                         getActivity().runOnUiThread(() -> {
                             if (cartList.isEmpty()) {
                                 rvCart.setVisibility(View.GONE);
-                                tvEmpty.setVisibility(View.VISIBLE);
+                                llEmpty.setVisibility(View.VISIBLE);
                                 llBottom.setVisibility(View.GONE);
                             } else {
                                 rvCart.setVisibility(View.VISIBLE);
-                                tvEmpty.setVisibility(View.GONE);
+                                llEmpty.setVisibility(View.GONE);
                                 llBottom.setVisibility(View.VISIBLE);
                                 updateTotal();
                             }
@@ -198,7 +207,7 @@ public class CartFragment extends Fragment {
                         updateTotal();
                         if (cartList.isEmpty()) {
                             rvCart.setVisibility(View.GONE);
-                            tvEmpty.setVisibility(View.VISIBLE);
+                            llEmpty.setVisibility(View.VISIBLE);
                             llBottom.setVisibility(View.GONE);
                         }
                         if (getActivity() != null) {

@@ -23,16 +23,42 @@
         android:layout_weight="1" />
 
     <!-- 空购物车提示 -->
-    <TextView
+    <LinearLayout
         android:id="@+id/tv_empty"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:gravity="center"
-        android:text="购物车空空如也~"
-        android:textColor="#999999"
-        android:textSize="16sp"
-        android:visibility="gone" />
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:src="@drawable/ic_cart"
+            android:tint="#CCCCCC"
+            android:alpha="0.5" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="购物车空空如也"
+            android:textColor="#999999"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/btn_go_home"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginTop="20dp"
+            android:background="#00C9A7"
+            android:paddingStart="30dp"
+            android:paddingEnd="30dp"
+            android:text="快去选购~~"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+    </LinearLayout>
 
     <!-- 底部结算栏 -->
     <LinearLayout
